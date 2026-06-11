@@ -49,6 +49,8 @@ The goal is a **calibration pipeline** over [LIGGGHTS](external/LIGGGHTS-PUBLIC/
 - **Surrogate-assisted optimization first** (Optuna Bayesian/TPE), GA (pymoo NSGA-II) as the multi-objective option. A vanilla GA on raw simulations is ruled out by cost per evaluation.
 - **OVITO is the primary visualizer**; ParaView held in reserve; matplotlib for all quantitative plots.
 - **Calibration geometries stay small.** Each simulation is tuned to 2–5 minutes on this machine; that single number dictates the optimizer budget, parallelism, and total wall time.
+- **Material: wheat grain** (dry, cohesionless — no SJKR), with **literature values as ground truth** since no physical sample is available; target AoR 27° ± 1.5° (σ assumed). *(locked at Phase 2/3, 2026-06-11)*
+- **AoR test configuration** *(locked at Phase 3)*: lifted cylinder R 0.040 m / H 0.100 m, 4000 spheres at the fixed wheat PSD, E = 1e7 Pa / dt = 8e-6 s, **lift speed 10 mm/s** — the published protocol speed; a faster lift is not an option because the response proved strongly rate-sensitive (see Phase-3 lessons).
 
 This document is the **big-picture roadmap**. Each phase below has a goal, exit criterion, dependencies, and risks. **Detailed per-phase implementation plans are drafted at the start of each phase**, not up front — so the plan stays adaptive.
 
@@ -177,9 +179,9 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 
 **Goal.** `calibration/measure.py` — the objective function's eyes, trusted blindly by the optimizer, therefore the most carefully tested code in the repo. Reads a final dump file; computes angle of repose by binning particle positions radially, extracting the surface profile, and fitting a line to the **flank** (not tip-to-toe — both ends are noisy); computes bulk density from the settled packing. Every call emits the profile-fit audit plot. Quantify the seed noise floor: same parameters, 5 seeds, report the angle spread.
 
-**Exit criterion.** Unit tests pass on synthetic heaps of known angle (±0.5°); automated angle agrees with manual on-screen measurement of rendered output to ±1°; the seed noise floor is documented and is **below** the physical spread σ from Phase 2.
+**Exit criterion.** Unit tests pass on synthetic heaps of known angle (±0.5°); automated angle agrees with manual on-screen measurement of rendered output to ±1°; the seed noise floor is documented and is **below** the physical spread σ from Phase 2 *(= the assumed σ of 1.5° from the literature substitute)*.
 
-**Dependencies.** Phase 3 (dump files to measure).
+**Dependencies.** Phase 3 (dump files to measure — final-state dumps exist under `results/phase3-aor/*/post/`, and the throwaway `results/phase3-aor/crude_angle.py` flank fit is the naive baseline this module replaces; note it under-reads by including the rounded toe).
 
 **Risks.** This is the highest-leverage failure point in the project — a silently wrong angle fit poisons every optimizer trial. Hence the audit plot on every call and the synthetic-heap tests. Seed noise exceeding physical σ → average more seeds per candidate or enlarge the heap.
 
@@ -302,9 +304,9 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 DEM-calibration/
 ├── ROADMAP.md            ← this file
 ├── external/             ← LIGGGHTS-PUBLIC source + built binary (done)
-├── templates/            ← parameterized LIGGGHTS input scripts (aor.in, drawdown.in)
+├── templates/            ← parameterized LIGGGHTS input scripts (aor.in done; drawdown.in at Phase 9) + STL generator/meshes
 ├── calibration/          ← Python driver: runner.py, measure.py, optimize.py
-├── experiments/          ← measured physical data + protocol
+├── experiments/          ← ground truth (currently the wheat literature substitute) + protocol
 ├── materials/            ← calibrated material cards (the deliverable)
 ├── results/              ← trial directories, LHS screen, optimizer studies
 └── docs/                 ← knob catalog, notes
