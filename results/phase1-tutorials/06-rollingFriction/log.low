@@ -1,0 +1,243 @@
+LIGGGHTS (Version LIGGGHTS-PUBLIC 3.8.0, compiled 2026-06-11-14:52:41 by joshuamayo, git commit 3d5c00f20519e6bb6eb6756f51f1ad36564e649d)
+# Rolling-friction smoke test — Hertz + tangential history + rolling_friction epsd2
+# Derived from contactModels/in.newModels. Proves the epsd2 pair_style string and the
+# coefficientRollingFriction property/global knob on this build, and exercises the
+# -var command-line mechanism the calibration pipeline is built on.
+#
+# Run twice:
+#   mpirun -np 2 lmp_auto -in in.rollingFriction -var MUR 0.05 -var TAG low  -log log.low
+#   mpirun -np 2 lmp_auto -in in.rollingFriction -var MUR 0.5  -var TAG high -log log.high
+# A narrow column of particles drops onto a plate; higher MUR -> steeper, less mobile pile.
+
+variable MUR index 0.3
+variable TAG index default
+
+atom_style	granular
+atom_modify	map array
+boundary	m m m
+newton		off
+
+communicate	single vel yes
+
+units		si
+
+region		reg block -0.15 0.15 -0.15 0.15 0. 0.25 units box
+create_box	1 reg
+Created orthogonal box = (-0.15 -0.15 0) to (0.15 0.15 0.25)
+  2 by 1 by 1 MPI processor grid
+
+neighbor		0.002 bin
+neigh_modify	delay 0
+
+#Material properties (epsd2 needs only coefficientRollingFriction —
+#viscous rolling damping is disabled in the epsd2 model)
+fix 		m1 all property/global youngsModulus peratomtype 5.e6
+fix 		m2 all property/global poissonsRatio peratomtype 0.45
+fix 		m3 all property/global coefficientRestitution peratomtypepair 1 0.3
+fix 		m4 all property/global coefficientFriction peratomtypepair 1 0.5
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 1 ${MUR}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 1 0.05
+
+pair_style gran model hertz tangential history rolling_friction epsd2
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+pair_coeff	* *
+
+timestep	0.00001
+
+fix			gravi all gravity 9.81 vector 0.0 0.0 -1.0
+
+#walls repeat the identical model string
+fix zfloor all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 1 zplane 0.0
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+fix xw1 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 1 xplane -0.15
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+fix xw2 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 1 xplane +0.15
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+fix yw1 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 1 yplane -0.15
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+fix yw2 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 1 yplane +0.15
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+
+#narrow column of insertion above the plate center
+region		bc cylinder z 0. 0. 0.035 0.05 0.25 units box
+
+#particle distributions
+fix			pts1 all particletemplate/sphere 15485863 atom_type 1 density constant 2500 radius constant 0.0025
+fix			pdd1 all particledistribution/discrete 15485867 1 pts1 1.0
+
+fix			ins all insert/pack seed 32452843 distributiontemplate pdd1 vel constant 0. 0. -0.5 				insert_every once overlapcheck yes all_in yes particles_in_region 1500 region bc
+
+fix			integr all nve/sphere
+
+#output settings
+compute		rke all erotate/sphere
+thermo_style	custom step atoms ke c_rke vol
+thermo			2000
+thermo_modify	lost ignore norm no
+dump			dmp all custom 2000 post/rollFric_${TAG}_*.liggghts id type x y z ix iy iz vx vy vz fx fy fz omegax omegay omegaz radius
+dump			dmp all custom 2000 post/rollFric_low_*.liggghts id type x y z ix iy iz vx vy vz fx fy fz omegax omegay omegaz radius
+
+#insert particles
+run				5000
+Setting up run at Thu Jun 11 16:12:08 2026
+
+INFO: Particle insertion ins: inserting every 0 steps
+Memory usage per processor = 7.8263 Mbytes
+    Step    Atoms         KinEng            rke         Volume 
+       0        0              0              0         0.0225 
+INFO: Particle insertion ins: inserted 1500 particle templates (mass 2.454369e-01) at step 1
+ - a total of 1500 particle templates (mass 2.454369e-01) inserted so far.
+    2000     1500    0.059472576              0         0.0225 
+    4000     1500    0.097719512              0         0.0225 
+    5000     1500     0.12038596              0         0.0225 
+Loop time of 0.13667 on 2 procs for 5000 steps with 1500 atoms, finish time Thu Jun 11 16:12:09 2026
+
+
+Pair  time (%) = 0.036787 (26.9167)
+Neigh time (%) = 0.0090415 (6.61557)
+Comm  time (%) = 0.0263905 (19.3097)
+Outpt time (%) = 0.0023045 (1.68618)
+Other time (%) = 0.0621465 (45.4719)
+
+Nlocal:    750 ave 751 max 749 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    156.5 ave 161 max 152 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    854.5 ave 860 max 849 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 1709
+Ave neighs/atom = 1.13933
+Neighbor list builds = 38
+Dangerous builds = 0
+unfix			ins
+
+#drop and settle into a pile
+run				100000 upto
+Setting up run at Thu Jun 11 16:12:09 2026
+
+Memory usage per processor = 14.3972 Mbytes
+    Step    Atoms         KinEng            rke         Volume 
+    5000     1500     0.12038596              0         0.0225 
+    6000     1500      0.1454144              0         0.0225 
+    8000     1500     0.17308908   0.0009612415         0.0225 
+   10000     1500     0.18676468   0.0018079615         0.0225 
+   12000     1500     0.17828006   0.0027524328         0.0225 
+   14000     1500     0.14388674   0.0038585647         0.0225 
+   16000     1500    0.078727701   0.0052989561         0.0225 
+   18000     1500    0.026820594   0.0039861858         0.0225 
+   20000     1500     0.02138847   0.0033550102         0.0225 
+   22000     1500    0.017176331   0.0032729058         0.0225 
+   24000     1500    0.013661847   0.0032041857         0.0225 
+   26000     1500    0.010524595   0.0030694354         0.0225 
+   28000     1500   0.0084386047   0.0027955948         0.0225 
+   30000     1500   0.0069157907   0.0025151687         0.0225 
+   32000     1500   0.0056135621   0.0022337096         0.0225 
+   34000     1500   0.0045452086   0.0019096938         0.0225 
+   36000     1500   0.0035198822   0.0015167176         0.0225 
+   38000     1500   0.0028806815   0.0012561034         0.0225 
+   40000     1500    0.002357415   0.0010448824         0.0225 
+   42000     1500   0.0019299211  0.00087783438         0.0225 
+   44000     1500   0.0015526905  0.00071533302         0.0225 
+   46000     1500   0.0012315784  0.00058075564         0.0225 
+   48000     1500  0.00099683327  0.00047282175         0.0225 
+   50000     1500  0.00078513433  0.00037726962         0.0225 
+   52000     1500  0.00060942882  0.00030479759         0.0225 
+   54000     1500  0.00047359218  0.00024533124         0.0225 
+   56000     1500  0.00035716523  0.00019683021         0.0225 
+   58000     1500  0.00028073254  0.00016156554         0.0225 
+   60000     1500  0.00020832405  0.00012793086         0.0225 
+   62000     1500  0.00016013625  0.00010559781         0.0225 
+   64000     1500  0.00012275252  8.8847136e-05         0.0225 
+   66000     1500  8.9384101e-05  7.4174331e-05         0.0225 
+   68000     1500  6.3709071e-05  6.2243611e-05         0.0225 
+   70000     1500   4.660019e-05  5.4719648e-05         0.0225 
+   72000     1500  3.2997426e-05  4.8330227e-05         0.0225 
+   74000     1500   2.293493e-05  4.2797174e-05         0.0225 
+   76000     1500   1.591491e-05  3.8805605e-05         0.0225 
+   78000     1500  1.1286941e-05  3.6121194e-05         0.0225 
+   80000     1500  6.7220663e-06   3.359425e-05         0.0225 
+   82000     1500  4.7286407e-06  3.2457141e-05         0.0225 
+   84000     1500  2.8195624e-06  3.1642289e-05         0.0225 
+   86000     1500  1.7564976e-06  3.1211712e-05         0.0225 
+   88000     1500  1.0365081e-06  3.0833756e-05         0.0225 
+   90000     1500  5.5772479e-07  3.0382833e-05         0.0225 
+   92000     1500   2.602545e-07  3.0241455e-05         0.0225 
+   94000     1500  9.4417521e-08  3.0071698e-05         0.0225 
+   96000     1500  2.8824202e-08  3.0038594e-05         0.0225 
+   98000     1500   5.019015e-09  3.0022516e-05         0.0225 
+  100000     1500  3.2863417e-11  3.0014212e-05         0.0225 
+Loop time of 5.52339 on 2 procs for 95000 steps with 1500 atoms, finish time Thu Jun 11 16:12:14 2026
+
+
+Pair  time (%) = 1.76652 (31.9825)
+Neigh time (%) = 0.120943 (2.18966)
+Comm  time (%) = 0.313547 (5.67672)
+Outpt time (%) = 0.058063 (1.05122)
+Other time (%) = 3.26432 (59.0999)
+
+Nlocal:    750 ave 751 max 749 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    65.5 ave 66 max 65 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    1247 ave 1254 max 1240 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 2494
+Ave neighs/atom = 1.66267
+Neighbor list builds = 464
+Dangerous builds = 0
