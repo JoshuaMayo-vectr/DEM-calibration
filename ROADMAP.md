@@ -4,8 +4,8 @@
 
 | # | Phase | Status |
 |---:|---|:---:|
-| 0  | Toolchain foundations (LIGGGHTS build, OVITO, Python env, repo scaffold) | 🟡 |
-| 1  | LIGGGHTS familiarization (tutorials, contact-model catalog, knobs & limits) | ⬜ |
+| 0  | Toolchain foundations (LIGGGHTS build, OVITO, Python env, repo scaffold) | ✅ |
+| 1  | LIGGGHTS familiarization (tutorials, contact-model catalog, knobs & limits) | ✅ |
 | 2  | Physical ground truth (material, PSD, densities, measured angle of repose) | ⬜ |
 | ⚑  | **Checkpoint 1 — Stack viable & targets measurable** | ⬜ |
 | 3  | Parameterized angle-of-repose simulation template | ⬜ |
@@ -123,7 +123,15 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 
 **Risks.** Some tutorial scripts use `dump custom/vtk` and fail on our build — mechanical fix, swap to `dump custom` (already proven on `packing`).
 
-**Lessons learned.** _(placeholder)_
+**Lessons learned.** *(completed 2026-06-11 — runs in `results/phase1-tutorials/`, catalog in `docs/liggghts-knobs.md`)*
+
+- The `dump custom/vtk → dump custom` swap was indeed mechanical (4 tutorials); `dump mesh/stl` needs no VTK and is how mesh motion is verified on this build.
+- **Legacy stiffness pair styles are not compiled into this binary at all** (`gran/hertz/history …` → `Invalid pair style`) — the modern `gran model …` grammar is the only option, which is what we wanted anyway.
+- **epsd2 needs only `coefficientRollingFriction`** — it disables the viscous rolling-damping torque; `coefficientRollingViscousDamping` belongs to epsd/epsd3. One fewer arbitrary constant: epsd2 confirmed as the Phase-3 default.
+- Wall fixes must repeat the pair_style's full model string; primitive walls are static — anything that moves must be a `fix mesh/surface` mesh driven by `fix move/mesh`, and the unfix-then-refix staging (settle → lift) works mid-run.
+- A Python-generated open-ended cylinder STL (48 segments, ASCII) loads cleanly and confines 2.5 mm particles with zero seam leakage through a 0.1 m/s lift; flank of the resulting heap fits ≈ 29° at μ_s = 0.5 / μ_r = 0.3. The generator (`make_cylinder_stl.py`) carries into Phase 3.
+- The `-var` mechanism (defaults via `variable … index`, `${VAR}` in dump filenames to separate per-trial outputs) is proven — the Phase-6 runner pattern works.
+- SJKR cohesion is a pure two-line toggle but costs ~3× runtime — remember when budgeting Phase-3 trials if the material is cohesive.
 
 ---
 
