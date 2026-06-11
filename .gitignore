@@ -1,0 +1,10 @@
+# LIGGGHTS source tree + built binary — rebuilt from the recipe in README.md
+external/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
