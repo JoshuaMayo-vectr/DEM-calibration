@@ -163,6 +163,33 @@ def add_outliers(df: pd.DataFrame, rng: np.random.Generator, frac: float = 0.01)
     return pd.concat([df, extra], ignore_index=True)
 
 
+def write_dump(df: pd.DataFrame, path, *, timestep: int = 0):
+    """Write a synthetic heap as a LIGGGHTS plain-text custom dump.
+
+    Emits the exact format calibration.measure.read_dump parses (and that
+    OVITO auto-detects): the standard column set from templates/aor.in, with
+    zero velocities/omegas, type 1, ids 1..n. Returns the path.
+    """
+    from pathlib import Path
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    n = len(df)
+    pad = 0.01
+    with open(path, "w") as fh:
+        fh.write("ITEM: TIMESTEP\n%d\n" % timestep)
+        fh.write("ITEM: NUMBER OF ATOMS\n%d\n" % n)
+        fh.write("ITEM: BOX BOUNDS mm mm mm\n")
+        for c in ("x", "y", "z"):
+            fh.write("%g %g\n" % (df[c].min() - pad, df[c].max() + pad))
+        fh.write("ITEM: ATOMS id type x y z vx vy vz "
+                 "omegax omegay omegaz radius\n")
+        for i, row in enumerate(df.itertuples(index=False), start=1):
+            fh.write("%d 1 %.8g %.8g %.8g 0 0 0 0 0 0 %.8g\n"
+                     % (i, row.x, row.y, row.z, row.radius))
+    return path
+
+
 def make_packed_cylinder(
     packing_frac: float,
     rng: np.random.Generator,

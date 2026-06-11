@@ -10,8 +10,8 @@
 | ⚑  | **Checkpoint 1 — Stack viable & targets measurable** | ✅ (via literature substitute) |
 | 3  | Parameterized angle-of-repose simulation template | ✅ |
 | 4  | Automated measurement module (heap-angle fit, bulk density, noise floor) | ✅ |
-| 5  | Visualization layer (OVITO interactive + headless snapshots + audit plots) | ⬜ |
-| ⚑  | **Checkpoint 2 — Simulation credible & objective trustworthy** | ⬜ |
+| 5  | Visualization layer (OVITO interactive + headless snapshots + audit plots) | ✅ |
+| ⚑  | **Checkpoint 2 — Simulation credible & objective trustworthy** | ✅ |
 | 6  | Simulation driver (templating, parallel execution, result cache) | ⬜ |
 | 7  | Latin-hypercube screen & sensitivity analysis | ⬜ |
 | ⚑  | **Checkpoint 3 — Target reachable inside parameter ranges** | ⬜ |
@@ -206,7 +206,21 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 
 **Risks.** Headless OVITO rendering on macOS occasionally needs an offscreen-context workaround — budget a half-day, fall back to `dump image` PPMs if it fights back.
 
-→ **Checkpoint 2**: Simulation credible & objective trustworthy?
+**Lessons learned.** *(completed 2026-06-11 — module [calibration/render.py](calibration/render.py), batch + 20-run sheet + run record in [results/phase5-contact-sheet/](results/phase5-contact-sheet/NOTES.md), tests in `tests/test_render.py`)*
+
+- **The macOS offscreen risk did not materialize.** `QT_QPA_PLATFORM=offscreen` + OVITO's TachyonRenderer (software ray tracer) rendered headlessly on the first attempt; the budgeted half-day was not needed. Renderer choice is isolated in one factory (Tachyon → OSPRay → OpenGL) and a matplotlib-3D-scatter fallback auto-engages if OVITO ever fails, so a Phase-6 batch can't die because rendering broke.
+- `ovito.io.import_file()` reads our `dump custom` files with **no column mapping** — format auto-detected, sphere radii picked up from the dump.
+- **Fixed camera framing (never `zoom_all`) is the design load-bearer**: every tile shares one orthographic view and one radius color scale, so the gravity-flipped run renders as a blank tile labeled "AoR n/a" — instantly spottable among 19 heaps in [contact_sheet.png](results/phase5-contact-sheet/contact_sheet.png).
+- `templates/aor.in` gained a `GRAVZ` fault-injection variable (default −1.0 preserves behavior exactly; regression-checked). A flipped-gravity run must be kept **short** (`LIFTH 0.005`): with no ceiling and shrink-wrapped boundaries, the full-length sim would send particles ~170 m up and exhaust neighbor-grid memory.
+- **`mpirun` eats stdin** — a `while read` loop driving the batch lost all runs after the first until `< /dev/null` was added. The Phase-6 runner must use `stdin=DEVNULL` on every launch.
+- The 7 new friction points double as free Phase-7 training data: AoR 17.0–34.4° brackets the 27° target *between* interior points (25.0° @ 0.50/0.12 ↔ 28.3° @ 0.55/0.15), and bulk density stays around the 780 kg/m³ literature value uncalibrated.
+- Per-trial render+measure cost ≈ 2 s — negligible against the ~4 min simulation; `render_trial(trial_dir)` is the ready-made Phase-6 hook (returns the measure dict + snapshot path; trial dirs carry `snapshot.png`, `profile_fit.png`, `measured.json`).
+
+→ **Checkpoint 2**: Simulation credible & objective trustworthy? — **✅ GO (2026-06-11).**
+- *Plausible, monotone friction response:* low → med → high = ~0° → 19.2° → 29.4°, and the Phase-5 batch fills the interior monotonically (17.0° → 24.3° → 25.0° → 28.3° with rising μ_s/μ_r); the 27° target is bracketed inside the screened range.
+- *Automated vs manual angle ±1°:* met in Phase 4 (0.2° med / 0.8° high on the gridded side-view readout).
+- *Seed noise floor below physical spread:* met in Phase 4 (σ = 0.82° < 1.5° assumed physical σ).
+- *Audit tooling in place:* every trial now emits a profile-fit plot and a fixed-frame snapshot, and a broken run is visually obvious in the contact sheet — the objective cannot silently rot. **Proceed to Phase 6.**
 
 ---
 

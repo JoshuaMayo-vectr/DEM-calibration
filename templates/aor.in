@@ -38,6 +38,9 @@ variable NPART      index 4000          # particles inserted
 variable MESH       index templates/meshes/cylinder_r0.040_h0.100.stl
 variable YMOD       index 1.0e7         # softened Young's modulus [Pa] (numerical device)
 variable DT         index 8.0e-6        # timestep [s] (paired with YMOD)
+variable GRAVZ      index -1.0          # gravity z-direction sign; -1.0 = normal.
+                                        # Fault-injection knob (Phase 5): +1.0 flips
+                                        # gravity to produce a deliberately broken run.
 
 # fixed (non-calibrated) material inputs
 variable POIS       equal 0.25          # Poisson ratio
@@ -77,7 +80,7 @@ pair_coeff	* *
 
 timestep	${DT}
 
-fix		gravi all gravity 9.81 vector 0.0 0.0 -1.0
+fix		gravi all gravity 9.81 vector 0.0 0.0 ${GRAVZ}
 
 # static base plate + safety side walls (all wall type 2)
 fix zfloor all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 zplane 0.0

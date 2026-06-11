@@ -1,0 +1,719 @@
+LIGGGHTS (Version LIGGGHTS-PUBLIC 3.8.0, compiled 2026-06-11-14:52:41 by joshuamayo, git commit 3d5c00f20519e6bb6eb6756f51f1ad36564e649d)
+# aor.in — Parameterized angle-of-repose lifted-cylinder heap test (Phase 3).
+#
+# Fill an open-ended mesh cylinder with wheat-scale spheres, settle, lift the
+# cylinder via fix move/mesh, relax to a heap, dump the final state. Every
+# calibration parameter enters as a -var; geometry and PSD are fixed inputs.
+#
+# Material: wheat grain (literature ground truth — experiments/ground-truth-wheat-literature.md).
+# Contact model: Phase-3 default from docs/liggghts-knobs.md.
+#
+# Run (from repo root):
+#   mpirun -np 2 lmp_auto -in templates/aor.in \
+#       -var TAG med -var FRIC 0.4 -var ROLLFRIC 0.05 -var REST 0.5 -log log.med
+#
+# Atom types: 1 = particles, 2 = walls (floor + side primitives + mesh cylinder).
+# This lets particle-wall friction differ from particle-particle (published wheat
+# sets do). property/global peratomtypepair takes the symmetric 2x2 matrix in
+# row order (1,1) (1,2) (2,1) (2,2); the (2,2) wall-wall entry is never exercised.
+
+# ---------------------------------------------------------------- variables
+variable FRIC       index 0.40          # mu_s particle-particle  [calibration target]
+variable FRICPW     index 0.40          # mu_s particle-wall      [calibration target]
+variable ROLLFRIC   index 0.05          # mu_r particle-particle, epsd2 [target]
+variable ROLLFRICPW index 0.05          # mu_r particle-wall, epsd2     [target]
+variable REST       index 0.50          # restitution             [target, weak]
+variable SEED       index 49979687      # insertion seed — the seed-to-seed noise lever (Phase 4 varies this)
+# (the three particletemplate seeds and the distribution seed are fixed distinct
+#  primes below; they seed constant-radius templates so have negligible effect —
+#  packing realization is driven by the insertion SEED. LIGGGHTS requires all
+#  five seeds across templates/distribution/insert to be distinct.)
+variable TAG        index dev           # output label
+variable LIFTV      index 0.010         # cylinder lift speed [m/s] — matches the published
+                                        # wheat lifted-cylinder protocol (Wang 2023). AoR is
+                                        # strongly lift-speed sensitive (Phase-3 finding: 18.4 deg
+                                        # @10 vs 12.3 deg @25 vs 10.4 deg @50 mm/s) — NOT quasi-static-
+                                        # invariant here, so we lock to the protocol speed.
+variable LIFTH      index 0.055         # cylinder lift distance [m] (<= 0.095)
+variable NPART      index 4000          # particles inserted
+variable MESH       index templates/meshes/cylinder_r0.040_h0.100.stl
+variable YMOD       index 1.0e7         # softened Young's modulus [Pa] (numerical device)
+variable DT         index 8.0e-6        # timestep [s] (paired with YMOD)
+variable GRAVZ      index -1.0          # gravity z-direction sign; -1.0 = normal.
+                                        # Fault-injection knob (Phase 5): +1.0 flips
+                                        # gravity to produce a deliberately broken run.
+
+# fixed (non-calibrated) material inputs
+variable POIS       equal 0.25          # Poisson ratio
+variable RHO        equal 1400          # particle density [kg/m3]
+
+# derived stage durations (settle 0.4 s, lift LIFTH/LIFTV, relax 0.4 s)
+variable settlesteps equal ceil(0.4/v_DT)
+variable liftsteps   equal ceil(v_LIFTH/(v_LIFTV*v_DT))
+variable relaxsteps  equal ceil(0.4/v_DT)
+variable dumpevery   equal 5000
+
+# ---------------------------------------------------------------- setup
+atom_style	granular
+atom_modify	map array
+boundary	m m m
+newton		off
+communicate	single vel yes
+units		si
+
+region		reg block -0.14 0.14 -0.14 0.14 0. 0.20 units box
+create_box	2 reg
+Created orthogonal box = (-0.14 -0.14 0) to (0.14 0.14 0.2)
+  1 by 2 by 1 MPI processor grid
+
+neighbor	0.002 bin
+neigh_modify	delay 0
+
+# ---------------------------------------------------------------- material / contact model
+# peratomtype: type1=particles, type2=walls (both get the softened E)
+fix 	m1 all property/global youngsModulus peratomtype ${YMOD} ${YMOD}
+fix 	m1 all property/global youngsModulus peratomtype 1.0e7 ${YMOD}
+fix 	m1 all property/global youngsModulus peratomtype 1.0e7 1.0e7
+fix 	m2 all property/global poissonsRatio peratomtype ${POIS} ${POIS}
+fix 	m2 all property/global poissonsRatio peratomtype 0.25 ${POIS}
+fix 	m2 all property/global poissonsRatio peratomtype 0.25 0.25
+# peratomtypepair 2 -> 2x2 symmetric matrix: (1,1) (1,2) (2,1) (2,2)
+fix 	m3 all property/global coefficientRestitution peratomtypepair 2 ${REST} ${REST} ${REST} ${REST}
+fix 	m3 all property/global coefficientRestitution peratomtypepair 2 0.5 ${REST} ${REST} ${REST}
+fix 	m3 all property/global coefficientRestitution peratomtypepair 2 0.5 0.5 ${REST} ${REST}
+fix 	m3 all property/global coefficientRestitution peratomtypepair 2 0.5 0.5 0.5 ${REST}
+fix 	m3 all property/global coefficientRestitution peratomtypepair 2 0.5 0.5 0.5 0.5
+fix 	m4 all property/global coefficientFriction peratomtypepair 2 ${FRIC} ${FRICPW} ${FRICPW} ${FRICPW}
+fix 	m4 all property/global coefficientFriction peratomtypepair 2 0.50 ${FRICPW} ${FRICPW} ${FRICPW}
+fix 	m4 all property/global coefficientFriction peratomtypepair 2 0.50 0.50 ${FRICPW} ${FRICPW}
+fix 	m4 all property/global coefficientFriction peratomtypepair 2 0.50 0.50 0.50 ${FRICPW}
+fix 	m4 all property/global coefficientFriction peratomtypepair 2 0.50 0.50 0.50 0.50
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 ${ROLLFRIC} ${ROLLFRICPW} ${ROLLFRICPW} ${ROLLFRICPW}
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 0.20 ${ROLLFRICPW} ${ROLLFRICPW} ${ROLLFRICPW}
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 0.20 0.20 ${ROLLFRICPW} ${ROLLFRICPW}
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 0.20 0.20 0.20 ${ROLLFRICPW}
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 0.20 0.20 0.20 0.20
+
+pair_style gran model hertz tangential history rolling_friction epsd2
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+pair_coeff	* *
+
+timestep	${DT}
+timestep	8.0e-6
+
+fix		gravi all gravity 9.81 vector 0.0 0.0 ${GRAVZ}
+fix		gravi all gravity 9.81 vector 0.0 0.0 -1.0
+
+# static base plate + safety side walls (all wall type 2)
+fix zfloor all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 zplane 0.0
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+fix xw1 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 xplane -0.13
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+fix xw2 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 xplane +0.13
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+fix yw1 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 yplane -0.13
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+fix yw2 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 yplane +0.13
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+
+# liftable cylinder: generated STL imported as a mesh wall (type 2)
+fix cyl all mesh/surface file ${MESH} type 2
+fix cyl all mesh/surface file ../../../templates/meshes/cylinder_r0.040_h0.100.stl type 2
+fix cylwall all wall/gran model hertz tangential history rolling_friction epsd2 mesh n_meshes 1 meshes cyl
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+
+# ---------------------------------------------------------------- particles (fixed PSD)
+# discrete distribution: d = 3.4 / 3.7 / 4.0 mm, mass weights 0.25 / 0.50 / 0.25
+fix	pts1 all particletemplate/sphere 15485863 atom_type 1 density constant ${RHO} radius constant 0.0017
+fix	pts1 all particletemplate/sphere 15485863 atom_type 1 density constant 1400 radius constant 0.0017
+fix	pts2 all particletemplate/sphere 15485867 atom_type 1 density constant ${RHO} radius constant 0.00185
+fix	pts2 all particletemplate/sphere 15485867 atom_type 1 density constant 1400 radius constant 0.00185
+fix	pts3 all particletemplate/sphere 32452843 atom_type 1 density constant ${RHO} radius constant 0.0020
+fix	pts3 all particletemplate/sphere 32452843 atom_type 1 density constant 1400 radius constant 0.0020
+fix	pdd1 all particledistribution/discrete 32452867 3 pts1 0.25 pts2 0.50 pts3 0.25
+
+# insert just inside the mesh (r 0.0375 < mesh r 0.04)
+region	bc cylinder z 0. 0. 0.0375 0.003 0.085 units box
+fix	ins all insert/pack seed ${SEED} distributiontemplate pdd1 vel constant 0. 0. -0.3 		insert_every once overlapcheck yes all_in yes particles_in_region ${NPART} region bc
+fix	ins all insert/pack seed 217645177 distributiontemplate pdd1 vel constant 0. 0. -0.3 		insert_every once overlapcheck yes all_in yes particles_in_region ${NPART} region bc
+fix	ins all insert/pack seed 217645177 distributiontemplate pdd1 vel constant 0. 0. -0.3 		insert_every once overlapcheck yes all_in yes particles_in_region 4000 region bc
+
+fix	integr all nve/sphere
+
+# timestep sanity (Phase-3 exit-criterion check)
+fix	ts all check/timestep/gran 2000 0.1 0.1
+
+# ---------------------------------------------------------------- output
+compute	rke all erotate/sphere
+thermo_style	custom step atoms ke c_rke f_ts[1] f_ts[2]
+thermo		2000
+thermo_modify	lost ignore norm no
+dump	dmp all custom ${dumpevery} post/${TAG}_*.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+dump	dmp all custom 5000 post/${TAG}_*.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+dump	dmp all custom 5000 post/f50r20_*.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+dump	dmpstl all mesh/stl ${dumpevery} post/${TAG}_mesh_*.stl
+dump	dmpstl all mesh/stl 5000 post/${TAG}_mesh_*.stl
+dump	dmpstl all mesh/stl 5000 post/f50r20_mesh_*.stl
+
+# ---------------------------------------------------------------- stages
+# stage 1 — insert and settle inside the cylinder
+run	${settlesteps}
+run	50001
+Setting up run at Thu Jun 11 21:26:16 2026
+
+INFO: Particle insertion ins: inserting every 0 steps
+Memory usage per processor = 10.4417 Mbytes
+    Step    Atoms         KinEng            rke          ts[1]          ts[2] 
+       0        0              0              0              0              0 
+INFO: Particle insertion ins: inserted 4000 particle templates (mass 1.456255e-01) at step 1
+ - a total of 4000 particle templates (mass 1.456255e-01) inserted so far.
+    2000     4000    0.013667879  4.8120412e-05    0.073452075    0.021815742 
+    4000     4000    0.018860647  0.00011738479    0.073452075    0.023047754 
+    6000     4000    0.018511121  0.00020195154    0.073452075    0.023887468 
+    8000     4000   0.0064159273  0.00031043528    0.073452075    0.025124877 
+   10000     4000  0.00024050327  5.5544424e-05    0.073452075      0.0212797 
+   12000     4000  5.3962929e-05  1.6443885e-05    0.073452075    0.019222109 
+   14000     4000  1.6270527e-05  6.6539076e-06    0.073452075    0.018587613 
+   16000     4000  5.1153057e-06  3.0093674e-06    0.073452075    0.018238775 
+   18000     4000  2.0888879e-06   1.513021e-06    0.073452075    0.016643353 
+   20000     4000  8.8197969e-07   8.226773e-07    0.073452075    0.015160861 
+   22000     4000  5.3014571e-07  3.9481274e-07    0.073452075    0.016936611 
+   24000     4000  5.3856095e-07  3.6475593e-07    0.073452075    0.016619729 
+   26000     4000  4.4124884e-07  3.5869842e-07    0.073452075    0.016467444 
+   28000     4000   1.158017e-07  2.0069584e-07    0.073452075      0.0142576 
+   30000     4000  3.7677959e-08  1.7770738e-07    0.073452075    0.013084825 
+   32000     4000  9.1017527e-08  2.0742405e-07    0.073452075    0.014861137 
+   34000     4000  2.5815059e-07  2.4273051e-07    0.073452075     0.01657275 
+   36000     4000  3.5854029e-07  2.4459658e-07    0.073452075    0.017034732 
+   38000     4000  8.6037724e-08  1.5207514e-07    0.073452075    0.014867911 
+   40000     4000  8.2743282e-08  1.5107139e-07    0.073452075    0.014641203 
+   42000     4000  4.7745166e-09  1.2873215e-07    0.073452075    0.011069213 
+   44000     4000   7.679699e-10  1.1796023e-07    0.073452075   0.0091287239 
+   46000     4000  1.6902155e-10  1.1643662e-07    0.073452075   0.0060370255 
+   48000     4000  2.0470716e-10  1.1627396e-07    0.073452075   0.0062523474 
+   50000     4000   1.136549e-10  1.1555872e-07    0.073452075   0.0063816597 
+   50001     4000  1.1397523e-10  1.1556005e-07    0.073452075   0.0063816597 
+Loop time of 15.0098 on 2 procs for 50001 steps with 4000 atoms, finish time Thu Jun 11 21:26:31 2026
+
+
+Pair  time (%) = 11.1213 (74.0937)
+Neigh time (%) = 0.096097 (0.640229)
+Comm  time (%) = 0.371941 (2.47799)
+Outpt time (%) = 0.025821 (0.172028)
+Other time (%) = 3.39462 (22.616)
+
+Nlocal:    2000 ave 2014 max 1986 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    388.5 ave 394 max 383 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    13670.5 ave 13783 max 13558 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 27341
+Ave neighs/atom = 6.83525
+Neighbor list builds = 81
+Dangerous builds = 0
+variable ke_settle equal ke
+print	"AUDIT settle: step ${settlesteps}  KE = ${ke_settle} J  (target < 2e-8 J for quasi-static)"
+AUDIT settle: step 50001  KE = 1.13975230639112e-10 J  (target < 2e-8 J for quasi-static)
+
+# stage 2 — lift the cylinder at LIFTV
+fix	lift all move/mesh mesh cyl linear 0. 0. ${LIFTV}
+fix	lift all move/mesh mesh cyl linear 0. 0. 0.010
+run	${liftsteps}
+run	687500
+Setting up run at Thu Jun 11 21:26:31 2026
+
+Memory usage per processor = 17.445 Mbytes
+    Step    Atoms         KinEng            rke          ts[1]          ts[2] 
+   50001     4000  1.1397523e-10  1.1556005e-07    0.073452075   0.0063816597 
+   52000     4000   1.776952e-07  2.4405033e-07    0.073452075    0.013176468 
+   54000     4000  2.9884253e-07  2.6272749e-07    0.073452075    0.012987289 
+   56000     4000  3.6592455e-07  3.1298167e-07    0.073452075    0.013449178 
+   58000     4000   3.440409e-07  3.4970582e-07    0.073452075    0.013609782 
+   60000     4000  2.7060446e-07  3.5180302e-07    0.073452075    0.013744151 
+   62000     4000  1.5348275e-07  2.5162878e-07    0.073452075      0.0124473 
+   64000     4000  1.5424962e-07  2.0775928e-07    0.073452075    0.012469179 
+   66000     4000  4.2776527e-07  2.5159111e-07    0.073452075    0.016229411 
+   68000     4000  1.8908419e-07  2.4604164e-07    0.073452075    0.013989085 
+   70000     4000   1.946789e-07  2.2004609e-07    0.073452075    0.013980398 
+   72000     4000  3.7855534e-07  2.8614408e-07    0.073452075    0.014365123 
+   74000     4000  2.7744225e-07  3.0617726e-07    0.073452075     0.01481671 
+   76000     4000  1.4956043e-07  2.0978136e-07    0.073452075    0.011974986 
+   78000     4000  2.3217932e-07  2.5080411e-07    0.073452075    0.014302068 
+   80000     4000  2.4722383e-07  2.8646709e-07    0.073452075    0.013521716 
+   82000     4000  4.9192764e-07  4.5889888e-07    0.073452075    0.015103437 
+   84000     4000  2.5835322e-07  2.9201166e-07    0.073452075    0.013398736 
+   86000     4000  2.2452807e-07  2.5830768e-07    0.073452075    0.013706671 
+   88000     4000  3.2609712e-07  3.5076721e-07    0.073452075    0.015169182 
+   90000     4000   2.420099e-07  2.9524038e-07    0.073452075    0.012828069 
+   92000     4000  1.2916117e-07  2.3138893e-07    0.073452075    0.011893054 
+   94000     4000   6.536159e-07  4.1175613e-07    0.073452075    0.016380553 
+   96000     4000  2.4874599e-07  3.2757375e-07    0.073452075    0.013367813 
+   98000     4000  4.6052405e-07  3.6204628e-07    0.073452075    0.014838377 
+  100000     4000  1.8157593e-06  5.9793847e-07    0.073452075    0.016527084 
+  102000     4000  1.5534034e-06  6.1163096e-07    0.073452075    0.015544647 
+  104000     4000  6.6967573e-07  5.0089218e-07    0.073452075    0.014239089 
+  106000     4000   8.059567e-07  5.5753195e-07    0.073452075    0.016110903 
+  108000     4000   2.299443e-06  8.4370191e-07    0.073452075    0.017432613 
+  110000     4000  4.2799405e-06   9.296581e-07    0.073452075    0.017906222 
+  112000     4000  2.4425036e-06  8.2104264e-07    0.073452075    0.016916811 
+  114000     4000  2.5378107e-06  1.0337558e-06    0.073452075    0.017357432 
+  116000     4000  2.7637114e-06  1.0343393e-06    0.073452075    0.017141323 
+  118000     4000  2.3412541e-06  8.7041681e-07    0.073452075    0.017723004 
+  120000     4000  2.8863293e-06  1.0504998e-06    0.073452075    0.018516782 
+  122000     4000  2.6627694e-06  1.1437723e-06    0.073452075    0.017125719 
+  124000     4000  1.5129149e-06   9.544413e-07    0.073452075    0.016107269 
+  126000     4000  2.3311463e-06  1.0345826e-06    0.073452075    0.016791015 
+  128000     4000  2.7687758e-06  1.0584708e-06    0.073452075    0.017371817 
+  130000     4000  2.0470319e-06  9.4697473e-07    0.073452075    0.016921051 
+  132000     4000  2.2706846e-06  8.4915362e-07    0.073452075    0.018404613 
+  134000     4000  3.1951229e-06  1.1259738e-06    0.073452075    0.017753857 
+  136000     4000  2.3831951e-06  1.1347921e-06    0.073452075    0.017047427 
+  138000     4000  5.0788257e-06  1.4811573e-06    0.073452075    0.018418855 
+  140000     4000  5.1785744e-06  1.4686872e-06    0.073452075    0.018061477 
+  142000     4000  4.8076338e-06  1.4926405e-06    0.073452075    0.016847578 
+  144000     4000  7.0938519e-06  1.8225371e-06    0.073452075    0.018654798 
+  146000     4000  8.9758722e-06  1.6530791e-06    0.073452075    0.018766758 
+  148000     4000  4.4189955e-06  1.5113991e-06    0.073452075    0.017165181 
+  150000     4000  8.2825893e-06  2.0898032e-06    0.073452075     0.01914411 
+  152000     4000  7.6777672e-06  2.1705375e-06    0.073452075    0.017907579 
+  154000     4000  1.0705557e-05  2.9961668e-06    0.073452075    0.018333015 
+  156000     4000   9.098935e-06  2.6563174e-06    0.073452075    0.018697244 
+  158000     4000  9.9006365e-06   3.022326e-06    0.073452075    0.019333302 
+  160000     4000  1.1219153e-05  3.0961707e-06    0.073452075    0.019123281 
+  162000     4000  1.3925392e-05  3.8460105e-06    0.073452075     0.01876409 
+  164000     4000  1.5571188e-05  3.6435988e-06    0.073452075    0.019304154 
+  166000     4000  1.2466301e-05  3.6561309e-06    0.073452075    0.019306801 
+  168000     4000  1.2654505e-05  3.5944132e-06    0.073452075    0.018627879 
+  170000     4000  9.9440669e-06  3.1307519e-06    0.073452075     0.01860133 
+  172000     4000  1.1838701e-05  3.1614292e-06    0.073452075    0.018871422 
+  174000     4000  9.0081558e-06  3.0104095e-06    0.073452075    0.017811143 
+  176000     4000  1.4948423e-05  3.9041157e-06    0.073452075    0.018495765 
+  178000     4000  1.6911531e-05   4.498295e-06    0.073452075    0.018109861 
+  180000     4000  2.2045899e-05  5.0614378e-06    0.073452075    0.018570271 
+  182000     4000  2.3744826e-05  5.4517552e-06    0.073452075    0.020077782 
+  184000     4000  1.7374343e-05  5.3434627e-06    0.073452075    0.018432607 
+  186000     4000  1.7115701e-05  5.1727084e-06    0.073452075    0.019135036 
+  188000     4000  1.8260956e-05  4.6409342e-06    0.073452075    0.019341673 
+  190000     4000  1.9441938e-05  5.0616388e-06    0.073452075    0.019445926 
+  192000     4000   1.592755e-05  4.5885541e-06    0.073452075    0.018960094 
+  194000     4000  2.0733716e-05  4.2885955e-06    0.073452075     0.01955216 
+  196000     4000  2.2028118e-05  5.1811305e-06    0.073452075    0.019369027 
+  198000     4000  1.6730834e-05   4.387899e-06    0.073452075     0.01876471 
+  200000     4000  1.8839464e-05  4.7584656e-06    0.073452075    0.018479104 
+  202000     4000  1.9950416e-05  5.1330035e-06    0.073452075    0.019192103 
+  204000     4000  2.7842699e-05  6.2298565e-06    0.073452075    0.019385409 
+  206000     4000  2.5834657e-05  5.2178771e-06    0.073452075    0.019523142 
+  208000     4000  2.5248679e-05  5.4748769e-06    0.073452075    0.020008565 
+  210000     4000  2.7859254e-05   6.275623e-06    0.073452075    0.018827326 
+  212000     4000  3.9141136e-05  7.8838267e-06    0.073452075    0.019944826 
+  214000     4000   4.703277e-05  8.1769555e-06    0.073452075    0.019488723 
+  216000     4000  4.1842933e-05  8.4339309e-06    0.073452075    0.019575918 
+  218000     4000  4.1655111e-05  8.7664198e-06    0.073452075    0.019293459 
+  220000     4000   4.199339e-05  9.0527536e-06    0.073452075     0.01915327 
+  222000     4000  4.3956644e-05  9.2190922e-06    0.073452075    0.019574265 
+  224000     4000  3.9769685e-05  9.5124768e-06    0.073452075    0.019567477 
+  226000     4000  4.1746051e-05  9.0322646e-06    0.073452075     0.01951632 
+  228000     4000  4.1562753e-05  9.7677009e-06    0.073452075    0.019513647 
+  230000     4000  4.2311331e-05  9.8341949e-06    0.073452075    0.018808338 
+  232000     4000  5.9458596e-05  1.0071373e-05    0.073452075    0.020121293 
+  234000     4000  5.9739479e-05  1.1494774e-05    0.073452075    0.019555363 
+  236000     4000  6.9105837e-05  1.0998565e-05    0.073452075    0.020189891 
+  238000     4000  5.7845553e-05  1.1322059e-05    0.073452075    0.019466281 
+  240000     4000  5.4642335e-05  1.2104651e-05    0.073452075    0.020256733 
+  242000     4000  5.3212735e-05  1.0366901e-05    0.073452075    0.019400422 
+  244000     4000   4.470001e-05  1.0599323e-05    0.073452075    0.019244602 
+  246000     4000  4.8861912e-05  1.1026308e-05    0.073452075    0.019031022 
+  248000     4000  5.4160596e-05  1.1593066e-05    0.073452075    0.019446322 
+  250000     4000  6.4477231e-05  1.3057383e-05    0.073452075    0.020139696 
+  252000     4000  6.0823538e-05  1.3079033e-05    0.073452075    0.019333629 
+  254000     4000  6.2602959e-05  1.2006229e-05    0.073452075    0.020397606 
+  256000     4000  5.3774073e-05  1.1990569e-05    0.073452075    0.019381241 
+  258000     4000  5.7520366e-05  1.2105208e-05    0.073452075    0.019861642 
+  260000     4000   5.747175e-05  1.2004682e-05    0.073452075    0.019664146 
+  262000     4000  6.2281897e-05  1.2255003e-05    0.073452075    0.019540011 
+  264000     4000  5.3217257e-05  1.1535194e-05    0.073452075    0.019512592 
+  266000     4000  5.4904808e-05  1.1773834e-05    0.073452075    0.019896475 
+  268000     4000  5.0998256e-05  1.2183389e-05    0.073452075    0.019796976 
+  270000     4000  6.2296024e-05  1.2402571e-05    0.073452075     0.01958108 
+  272000     4000  6.4029924e-05  1.2194331e-05    0.073452075    0.020477738 
+  274000     4000  6.7359346e-05  1.2426572e-05    0.073452075    0.020034668 
+  276000     4000   6.011233e-05  1.1571448e-05    0.073452075    0.019766046 
+  278000     4000  5.9368301e-05  1.2106963e-05    0.073452075    0.019735379 
+  280000     4000  5.8983666e-05  1.1226138e-05    0.073452075    0.019190923 
+  282000     4000  6.6375755e-05  1.1547976e-05    0.073452075    0.019543244 
+  284000     4000    7.13651e-05  1.3020988e-05    0.073452075    0.020141233 
+  286000     4000   7.830444e-05  1.4795832e-05    0.073452075    0.019647077 
+  288000     4000  8.6794745e-05  1.5331895e-05    0.073452075    0.020821543 
+  290000     4000  9.2205739e-05  1.6943755e-05    0.073452075    0.019622923 
+  292000     4000  0.00010045894  1.7886469e-05    0.073452075    0.019307184 
+  294000     4000  9.2242134e-05  1.6390623e-05    0.073452075    0.019996289 
+  296000     4000  9.6302627e-05  1.7643765e-05    0.073452075    0.020025995 
+  298000     4000  8.2394143e-05  1.6879869e-05    0.073452075    0.019328972 
+  300000     4000  7.7798992e-05  1.5240023e-05    0.073452075    0.019659598 
+  302000     4000  7.2253134e-05  1.6213526e-05    0.073452075    0.019316065 
+  304000     4000  6.1650399e-05  1.3758445e-05    0.073452075    0.019805934 
+  306000     4000  5.9102691e-05  1.3027678e-05    0.073452075     0.01988171 
+  308000     4000  5.4330495e-05  1.3346299e-05    0.073452075    0.019689087 
+  310000     4000  5.5868204e-05  1.2486301e-05    0.073452075    0.020054881 
+  312000     4000  4.8824998e-05  1.2165879e-05    0.073452075    0.019317081 
+  314000     4000  5.0584349e-05  1.1965683e-05    0.073452075    0.019614034 
+  316000     4000   5.367056e-05  1.2220748e-05    0.073452075    0.018712128 
+  318000     4000  6.2597445e-05  1.2748764e-05    0.073452075    0.019143019 
+  320000     4000  6.1823627e-05   1.161222e-05    0.073452075    0.019129685 
+  322000     4000  5.0928587e-05  1.1649785e-05    0.073452075    0.019564705 
+  324000     4000  4.7212205e-05  1.1615901e-05    0.073452075    0.019384872 
+  326000     4000   4.964957e-05  1.1782226e-05    0.073452075    0.019577501 
+  328000     4000  5.5315286e-05  1.2062029e-05    0.073452075    0.020032291 
+  330000     4000  4.8745837e-05  1.2261314e-05    0.073452075    0.020333737 
+  332000     4000  5.2578077e-05  1.1843743e-05    0.073452075    0.020434359 
+  334000     4000  4.7393247e-05  1.2126512e-05    0.073452075    0.019174855 
+  336000     4000  5.2792736e-05   1.233837e-05    0.073452075    0.019560368 
+  338000     4000  5.5914178e-05  1.2715236e-05    0.073452075    0.019730064 
+  340000     4000  4.4710203e-05  1.1322952e-05    0.073452075    0.019440831 
+  342000     4000  3.9868024e-05   9.318888e-06    0.073452075    0.019885084 
+  344000     4000  3.3839991e-05  8.7213496e-06    0.073452075    0.019242763 
+  346000     4000  3.0624954e-05  8.5913458e-06    0.073452075    0.019302959 
+  348000     4000  2.9344198e-05  8.6047768e-06    0.073452075    0.018953655 
+  350000     4000   2.599016e-05  7.8815447e-06    0.073452075    0.019077507 
+  352000     4000  2.8383255e-05  7.6385236e-06    0.073452075    0.019026401 
+  354000     4000  2.2172845e-05  6.5488904e-06    0.073452075     0.01814835 
+  356000     4000  2.1471365e-05  6.5459767e-06    0.073452075    0.019442069 
+  358000     4000  1.8932021e-05  6.0156094e-06    0.073452075     0.01944724 
+  360000     4000  1.5731388e-05  5.4107994e-06    0.073452075    0.019283664 
+  362000     4000  1.0963913e-05  4.0676863e-06    0.073452075     0.01814341 
+  364000     4000  1.2244281e-05  4.1047498e-06    0.073452075    0.018951246 
+  366000     4000  1.0562891e-05  3.3786015e-06    0.073452075    0.019857803 
+  368000     4000  8.6492599e-06   2.824924e-06    0.073452075    0.019184501 
+  370000     4000  5.1683913e-06   2.230107e-06    0.073452075    0.017777219 
+  372000     4000   4.521216e-06  1.8017073e-06    0.073452075    0.018340788 
+  374000     4000  3.4520864e-06  1.6103169e-06    0.073452075    0.017304276 
+  376000     4000  3.5399901e-06  1.4992351e-06    0.073452075    0.017385676 
+  378000     4000  3.4289286e-06  1.4086666e-06    0.073452075    0.018444947 
+  380000     4000  2.9111494e-06  1.2920411e-06    0.073452075     0.01765014 
+  382000     4000  2.1591377e-06  7.9705114e-07    0.073452075    0.018673151 
+  384000     4000  2.1810981e-06  6.8417031e-07    0.073452075    0.018950745 
+  386000     4000  9.2035578e-07  5.7414366e-07    0.073452075    0.015842529 
+  388000     4000  8.8093734e-07  4.9449766e-07    0.073452075     0.01659103 
+  390000     4000  7.5515835e-07  4.4566397e-07    0.073452075    0.017180359 
+  392000     4000  5.7672603e-07   4.481162e-07    0.073452075    0.015797449 
+  394000     4000  6.8595484e-07    3.81327e-07    0.073452075    0.016935913 
+  396000     4000  3.4232591e-07  2.9910866e-07    0.073452075    0.015845696 
+  398000     4000  3.7555841e-07  3.1527666e-07    0.073452075    0.015630928 
+  400000     4000  7.4718279e-07  2.8558711e-07    0.073452075    0.017897163 
+  402000     4000  5.3500297e-07  2.7579264e-07    0.073452075    0.017310833 
+  404000     4000  1.0391351e-07  1.2625074e-07    0.073452075    0.014186499 
+  406000     4000  4.4974385e-08  1.1691393e-07    0.073452075    0.012233711 
+  408000     4000  4.9300634e-08  1.2944347e-07    0.073452075    0.012796474 
+  410000     4000  1.0975642e-07  1.5740724e-07    0.073452075    0.014160384 
+  412000     4000  3.0425998e-07  1.8453755e-07    0.073452075    0.015790686 
+  414000     4000  2.0423284e-07  1.9256981e-07    0.073452075    0.014723096 
+  416000     4000  2.0116216e-07  2.1653061e-07    0.073452075    0.015307262 
+  418000     4000  5.2993001e-07   2.965952e-07    0.073452075    0.016924394 
+  420000     4000  4.5966556e-07  2.9121546e-07    0.073452075    0.016701317 
+  422000     4000  3.5952467e-07  2.5937225e-07    0.073452075    0.015752446 
+  424000     4000  2.3368816e-07  2.0590566e-07    0.073452075    0.016068408 
+  426000     4000  2.8982941e-07   2.022206e-07    0.073452075    0.016328922 
+  428000     4000  4.4244151e-08  1.0220775e-07    0.073452075    0.012714432 
+  430000     4000   1.508334e-07  1.5122414e-07    0.073452075    0.014362275 
+  432000     4000  5.2510939e-08  1.1087271e-07    0.073452075    0.013260466 
+  434000     4000  1.8131561e-08  9.7338267e-08    0.073452075    0.012270957 
+  436000     4000  1.6014593e-09  8.2975037e-08    0.073452075   0.0098065294 
+  438000     4000  7.0732455e-09  9.0413561e-08    0.073452075    0.011379725 
+  440000     4000  1.5069917e-10  8.1186066e-08    0.073452075   0.0090168824 
+  442000     4000  1.8548016e-11   8.106766e-08    0.073452075   0.0086980322 
+  444000     4000  7.7199583e-12  8.1058136e-08    0.073452075   0.0086833241 
+  446000     4000  5.1505116e-12  8.1058146e-08    0.073452075   0.0086876464 
+  448000     4000  5.1495364e-12  8.1057998e-08    0.073452075   0.0086973071 
+  450000     4000  3.6873274e-12  8.1049543e-08    0.073452075     0.00869413 
+  452000     4000   3.200348e-12  8.1048613e-08    0.073452075   0.0086907698 
+  454000     4000  2.2421932e-12  8.1047794e-08    0.073452075   0.0086961891 
+  456000     4000  1.3584178e-12  8.1042194e-08    0.073452075   0.0086842466 
+  458000     4000  1.0354748e-12  8.1039862e-08    0.073452075   0.0086846002 
+  460000     4000  1.0772181e-12  8.1039303e-08    0.073452075   0.0086953149 
+  462000     4000  1.0360914e-12  8.1035019e-08    0.073452075   0.0086847888 
+  464000     4000  1.0481512e-12  8.1031778e-08    0.073452075   0.0086859889 
+  466000     4000   1.059181e-12  8.1033189e-08    0.073452075   0.0086946907 
+  468000     4000  7.9086587e-13  8.1027803e-08    0.073452075   0.0086854697 
+  470000     4000  4.9780247e-13  8.1023295e-08    0.073452075   0.0086814066 
+  472000     4000  5.2629723e-13  8.1024414e-08    0.073452075   0.0086932587 
+  474000     4000  4.8358325e-13  8.1020342e-08    0.073452075   0.0086861446 
+  476000     4000  4.2824928e-13   8.101695e-08    0.073452075   0.0086799704 
+  478000     4000  6.1578881e-13  8.1017217e-08    0.073452075   0.0086922429 
+  480000     4000  4.9356817e-13  8.1013741e-08    0.073452075   0.0086863968 
+  482000     4000  3.0061569e-13  8.1009459e-08    0.073452075   0.0086792671 
+  484000     4000  4.0492469e-13  8.1010357e-08    0.073452075   0.0086911127 
+  486000     4000   3.240268e-13  8.1007837e-08    0.073452075   0.0086867835 
+  488000     4000  1.9843112e-13  8.1002515e-08    0.073452075   0.0086773226 
+  490000     4000  3.3856548e-13  8.1003369e-08    0.073452075   0.0086898405 
+  492000     4000  3.6277262e-13  8.1000939e-08    0.073452075    0.008687044 
+  494000     4000   2.198263e-13  8.0996369e-08    0.073452075   0.0086778292 
+  496000     4000  3.0883553e-13  8.0996958e-08    0.073452075   0.0086885511 
+  498000     4000  2.8609674e-13  8.0994331e-08    0.073452075    0.008687065 
+  500000     4000  9.3794951e-14  8.0989568e-08    0.073452075   0.0086771178 
+  502000     4000  2.4247295e-13  8.0990116e-08    0.073452075   0.0086875484 
+  504000     4000  2.8202736e-13  8.0988687e-08    0.073452075   0.0086869389 
+  506000     4000  1.1804149e-13  8.0983893e-08    0.073452075   0.0086758639 
+  508000     4000  2.1390997e-13  8.0983878e-08    0.073452075   0.0086863635 
+  510000     4000  2.1912173e-13  8.0982384e-08    0.073452075   0.0086869852 
+  512000     4000  7.4187904e-14  8.0977793e-08    0.073452075   0.0086748266 
+  514000     4000  1.7705077e-13  8.0977918e-08    0.073452075   0.0086850311 
+  516000     4000   2.086794e-13  8.0976425e-08    0.073452075   0.0086869192 
+  518000     4000  5.3932946e-14  8.0971801e-08    0.073452075   0.0086748954 
+  520000     4000  1.3217393e-13  8.0971626e-08    0.073452075   0.0086838995 
+  522000     4000  1.9906516e-13   8.097071e-08    0.073452075   0.0086865592 
+  524000     4000  6.5167093e-14  8.0966654e-08    0.073452075   0.0086754527 
+  526000     4000  1.1644682e-13  8.0966055e-08    0.073452075   0.0086828805 
+  528000     4000  1.7251691e-13  8.0965146e-08    0.073452075   0.0086862443 
+  530000     4000   4.170457e-14  8.0961169e-08    0.073452075   0.0086750928 
+  532000     4000  1.0921499e-13  8.0960543e-08    0.073452075   0.0086815899 
+  534000     4000   1.698543e-13  8.0959736e-08    0.073452075   0.0086860236 
+  536000     4000  4.0577173e-14  8.0955775e-08    0.073452075    0.008675834 
+  538000     4000  8.1162261e-14  8.0954779e-08    0.073452075   0.0086805484 
+  540000     4000  1.4222504e-13  8.0954152e-08    0.073452075   0.0086855555 
+  542000     4000  4.6396829e-14  8.0950789e-08    0.073452075   0.0086765544 
+  544000     4000  7.0210281e-14  8.0949633e-08    0.073452075   0.0086795645 
+  546000     4000  1.3541055e-13  8.0949029e-08    0.073452075   0.0086850684 
+  548000     4000   3.953445e-14  8.0945855e-08    0.073452075   0.0086771509 
+  550000     4000   5.449886e-14  8.0944592e-08    0.073452075   0.0086784358 
+  552000     4000  1.3068615e-13   8.094415e-08    0.073452075   0.0086846919 
+  554000     4000  3.8866939e-14  8.0941069e-08    0.073452075   0.0086775653 
+  556000     4000   4.488436e-14  8.0939474e-08    0.073452075   0.0086774205 
+  558000     4000  1.0615334e-13  8.0938982e-08    0.073452075   0.0086841198 
+  560000     4000  4.3734263e-14  8.0936303e-08    0.073452075   0.0086780901 
+  562000     4000  4.4391646e-14  8.0934716e-08    0.073452075   0.0086765715 
+  564000     4000  9.8796519e-14  8.0934263e-08    0.073452075   0.0086835094 
+  566000     4000  4.6411263e-14  8.0931836e-08    0.073452075   0.0086784702 
+  568000     4000  2.9604863e-14  8.0930165e-08    0.073452075    0.008675611 
+  570000     4000  9.4277541e-14  8.0929807e-08    0.073452075   0.0086830283 
+  572000     4000  4.9250486e-14  8.0927562e-08    0.073452075   0.0086786925 
+  574000     4000  2.4978948e-14   8.092567e-08    0.073452075   0.0086746848 
+  576000     4000  8.3824088e-14  8.0925204e-08    0.073452075    0.008682457 
+  578000     4000  4.2984988e-14  8.0923154e-08    0.073452075   0.0086789633 
+  580000     4000  2.0943667e-14  8.0921267e-08    0.073452075    0.008673923 
+  582000     4000  6.9764034e-14  8.0920774e-08    0.073452075   0.0086817538 
+  584000     4000  4.4524678e-14  8.0918965e-08    0.073452075   0.0086792228 
+  586000     4000  1.5850097e-14  8.0917138e-08    0.073452075   0.0086732188 
+  588000     4000  6.3600138e-14  8.0916746e-08    0.073452075   0.0086811804 
+  590000     4000  4.8577125e-14  8.0915167e-08    0.073452075   0.0086792586 
+  592000     4000  1.2282772e-14  8.0913227e-08    0.073452075   0.0086731403 
+  594000     4000  5.7425583e-14  8.0912702e-08    0.073452075   0.0086805925 
+  596000     4000  4.6950539e-14  8.0911236e-08    0.073452075   0.0086793358 
+  598000     4000  1.1849168e-14  8.0909315e-08    0.073452075    0.008673649 
+  600000     4000  4.9779323e-14  8.0908724e-08    0.073452075   0.0086799219 
+  602000     4000  4.3873893e-14  8.0907376e-08    0.073452075   0.0086794227 
+  604000     4000  1.0382354e-14  8.0905534e-08    0.073452075   0.0086730514 
+  606000     4000  4.3580237e-14  8.0905011e-08    0.073452075   0.0086792855 
+  608000     4000   4.658011e-14  8.0903918e-08    0.073452075    0.008679369 
+  610000     4000  9.0487438e-15  8.0902121e-08    0.073452075   0.0086726512 
+  612000     4000  3.7721215e-14  8.0901507e-08    0.073452075   0.0086787248 
+  614000     4000  4.5600899e-14  8.0900496e-08    0.073452075   0.0086792738 
+  616000     4000  8.6855563e-15  8.0898724e-08    0.073452075   0.0086733129 
+  618000     4000    3.21755e-14  8.0898016e-08    0.073452075   0.0086780616 
+  620000     4000   3.997144e-14  8.0897025e-08    0.073452075   0.0086792334 
+  622000     4000  5.5981945e-15  8.0895313e-08    0.073452075   0.0086727569 
+  624000     4000  2.7105317e-14  8.0894649e-08    0.073452075   0.0086774261 
+  626000     4000  4.0367879e-14  8.0893874e-08    0.073452075   0.0086790814 
+  628000     4000  7.8212624e-15  8.0892297e-08    0.073452075   0.0086729048 
+  630000     4000  2.1685576e-14  8.0891588e-08    0.073452075   0.0086768806 
+  632000     4000  3.9190537e-14  8.0890903e-08    0.073452075   0.0086788774 
+  634000     4000  1.1111771e-14  8.0889425e-08    0.073452075   0.0086733415 
+  636000     4000  2.1856012e-14  8.0888667e-08    0.073452075    0.008676298 
+  638000     4000  3.6715401e-14  8.0887954e-08    0.073452075   0.0086787178 
+  640000     4000  7.1022671e-15  8.0886461e-08    0.073452075   0.0086736574 
+  642000     4000   1.601199e-14  8.0885669e-08    0.073452075   0.0086756791 
+  644000     4000  3.5036796e-14  8.0885093e-08    0.073452075   0.0086785188 
+  646000     4000   9.641072e-15  8.0883783e-08    0.073452075   0.0086740088 
+  648000     4000  1.2171737e-14   8.088301e-08    0.073452075   0.0086751705 
+  650000     4000  3.0824962e-14  8.0882515e-08    0.073452075     0.00867823 
+  652000     4000  1.1192571e-14  8.0881338e-08    0.073452075     0.00867433 
+  654000     4000  1.3105629e-14  8.0880576e-08    0.073452075   0.0086746481 
+  656000     4000  3.0770406e-14  8.0880083e-08    0.073452075   0.0086779727 
+  658000     4000  9.0517817e-15  8.0878903e-08    0.073452075   0.0086745454 
+  660000     4000  7.8575277e-15  8.0878071e-08    0.073452075   0.0086740978 
+  662000     4000  2.7873286e-14  8.0877615e-08    0.073452075   0.0086777285 
+  664000     4000  1.1156905e-14  8.0876564e-08    0.073452075   0.0086747413 
+  666000     4000   6.155221e-15  8.0875762e-08    0.073452075   0.0086736226 
+  668000     4000  2.2803242e-14  8.0875375e-08    0.073452075   0.0086774061 
+  670000     4000  1.1342314e-14   8.087449e-08    0.073452075   0.0086749569 
+  672000     4000  7.8614151e-15  8.0873775e-08    0.073452075   0.0086731871 
+  674000     4000  2.4998382e-14  8.0873434e-08    0.073452075   0.0086770973 
+  676000     4000  1.2371661e-14  8.0872573e-08    0.073452075   0.0086750864 
+  678000     4000   4.007874e-15  8.0871787e-08    0.073452075   0.0086727052 
+  680000     4000  2.1052931e-14  8.0871429e-08    0.073452075   0.0086768178 
+  682000     4000  1.3034584e-14   8.087065e-08    0.073452075   0.0086751798 
+  684000     4000  4.1037962e-15  8.0869886e-08    0.073452075   0.0086725477 
+  686000     4000  1.6871803e-14  8.0869547e-08    0.073452075   0.0086764774 
+  688000     4000  1.0364674e-14  8.0868894e-08    0.073452075    0.008675285 
+  690000     4000  3.2161194e-15  8.0868243e-08    0.073452075   0.0086721731 
+  692000     4000  1.7843902e-14  8.0868001e-08    0.073452075   0.0086761264 
+  694000     4000  1.3563893e-14  8.0867441e-08    0.073452075   0.0086753436 
+  696000     4000   2.566614e-15   8.086678e-08    0.073452075   0.0086726024 
+  698000     4000  1.4682133e-14  8.0866512e-08    0.073452075   0.0086758306 
+  700000     4000  1.3160031e-14  8.0865993e-08    0.073452075   0.0086753373 
+  702000     4000  3.3161797e-15  8.0865331e-08    0.073452075   0.0086725143 
+  704000     4000  1.2338964e-14  8.0865039e-08    0.073452075   0.0086755035 
+  706000     4000  1.0453351e-14  8.0864591e-08    0.073452075   0.0086753594 
+  708000     4000  1.2863174e-15  8.0864036e-08    0.073452075   0.0086717226 
+  710000     4000  1.1703686e-14  8.0863849e-08    0.073452075   0.0086751531 
+  712000     4000  1.3044202e-14   8.086352e-08    0.073452075   0.0086753538 
+  714000     4000  2.4728055e-15  8.0863011e-08    0.073452075    0.008672396 
+  716000     4000  9.6724616e-15  8.0862832e-08    0.073452075   0.0086748419 
+  718000     4000  1.2511997e-14  8.0862564e-08    0.073452075   0.0086752875 
+  720000     4000  3.7176477e-15  8.0862077e-08    0.073452075   0.0086723929 
+  722000     4000  9.2110368e-15  8.0861851e-08    0.073452075   0.0086745317 
+  724000     4000  1.0345691e-14  8.0861575e-08    0.073452075   0.0086752263 
+  726000     4000  7.4411451e-16  8.0861137e-08    0.073452075   0.0086718421 
+  728000     4000  6.5405655e-15  8.0860998e-08    0.073452075   0.0086741904 
+  730000     4000  1.1203649e-14  8.0860854e-08    0.073452075   0.0086751693 
+  732000     4000  2.6116783e-15  8.0860507e-08    0.073452075   0.0086720551 
+  734000     4000  5.8467172e-15  8.0860402e-08    0.073452075   0.0086738873 
+  736000     4000  1.0547008e-14  8.0860333e-08    0.073452075   0.0086750592 
+  737501     4000  7.5958705e-15   8.086011e-08    0.073452075   0.0086750592 
+Loop time of 212.781 on 2 procs for 687500 steps with 4000 atoms, finish time Thu Jun 11 21:30:04 2026
+
+
+Pair  time (%) = 164.255 (77.1945)
+Neigh time (%) = 0.774618 (0.364045)
+Comm  time (%) = 4.49399 (2.11203)
+Outpt time (%) = 0.381432 (0.17926)
+Other time (%) = 42.8757 (20.1501)
+
+Nlocal:    2000 ave 2007 max 1993 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    327 ave 331 max 323 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    12965 ave 12998 max 12932 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 25930
+Ave neighs/atom = 6.4825
+Neighbor list builds = 631
+Dangerous builds = 0
+
+# stage 3 — stop the lift, let the heap relax
+unfix	lift
+run	${relaxsteps}
+run	50001
+Setting up run at Thu Jun 11 21:30:04 2026
+
+Memory usage per processor = 17.445 Mbytes
+    Step    Atoms         KinEng            rke          ts[1]          ts[2] 
+  737501     4000  7.5958705e-15   8.086011e-08    0.073452075   0.0086750592 
+  738000     4000  3.7541223e-15  8.0860054e-08    0.073452075   0.0024544683 
+  740000     4000  6.5187489e-15  8.0859938e-08    0.073452075   0.0027270375 
+  742000     4000  1.0233109e-14  8.0859842e-08    0.073452075   0.0029589522 
+  744000     4000   2.138588e-15  8.0859558e-08    0.073452075   0.0024387391 
+  746000     4000  3.6836187e-15  8.0859472e-08    0.073452075   0.0026615901 
+  748000     4000  9.1094632e-15   8.085947e-08    0.073452075   0.0029437494 
+  750000     4000  2.8438876e-15  8.0859283e-08    0.073452075   0.0024841222 
+  752000     4000  3.1655144e-15  8.0859248e-08    0.073452075    0.002591964 
+  754000     4000  8.3954356e-15  8.0859331e-08    0.073452075   0.0029224205 
+  756000     4000  3.7803395e-15  8.0859256e-08    0.073452075   0.0025294609 
+  758000     4000  4.4054109e-15  8.0859272e-08    0.073452075   0.0025244684 
+  760000     4000  9.1268966e-15  8.0859351e-08    0.073452075   0.0028974257 
+  762000     4000  3.3695313e-15  8.0859249e-08    0.073452075   0.0025626867 
+  764000     4000  2.1513472e-15  8.0859249e-08    0.073452075   0.0024451586 
+  766000     4000  7.3409119e-15   8.085938e-08    0.073452075   0.0028753038 
+  768000     4000  3.3262186e-15  8.0859363e-08    0.073452075   0.0025843662 
+  770000     4000  1.6023609e-15  8.0859407e-08    0.073452075   0.0023558971 
+  772000     4000  6.0557671e-15  8.0859593e-08    0.073452075   0.0028499315 
+  774000     4000  3.2512559e-15  8.0859686e-08    0.073452075   0.0026066974 
+  776000     4000  2.3913711e-15  8.0859836e-08    0.073452075   0.0023546575 
+  778000     4000  7.3768075e-15  8.0860088e-08    0.073452075   0.0028194629 
+  780000     4000  4.4678648e-15  8.0860193e-08    0.073452075   0.0026260862 
+  782000     4000  1.7948351e-15   8.086031e-08    0.073452075   0.0023953744 
+  784000     4000  5.8737664e-15  8.0860563e-08    0.073452075   0.0027899975 
+  786000     4000  3.8245392e-15  8.0860721e-08    0.073452075    0.002635238 
+  787502     4000  6.1084022e-15  8.0860968e-08    0.073452075    0.002635238 
+Loop time of 13.8153 on 2 procs for 50001 steps with 4000 atoms, finish time Thu Jun 11 21:30:18 2026
+
+
+Pair  time (%) = 11.0929 (80.294)
+Neigh time (%) = 0 (0)
+Comm  time (%) = 0.282675 (2.0461)
+Outpt time (%) = 0.027208 (0.196941)
+Other time (%) = 2.41256 (17.463)
+
+Nlocal:    2000 ave 2007 max 1993 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    327 ave 331 max 323 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    12965 ave 12998 max 12932 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 25930
+Ave neighs/atom = 6.4825
+Neighbor list builds = 0
+Dangerous builds = 0
+variable ke_relax equal ke
+print	"AUDIT relax: KE = ${ke_relax} J  (heap should be static)"
+AUDIT relax: KE = 6.10840221150532e-15 J  (heap should be static)
+
+# final state for measurement (Phase 4)
+write_dump all custom post/${TAG}_final.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+write_dump all custom post/f50r20_final.liggghts id type x y z vx vy vz omegax omegay omegaz radius

@@ -1,0 +1,272 @@
+LIGGGHTS (Version LIGGGHTS-PUBLIC 3.8.0, compiled 2026-06-11-14:52:41 by joshuamayo, git commit 3d5c00f20519e6bb6eb6756f51f1ad36564e649d)
+Created orthogonal box = (-0.14 -0.14 0) to (0.14 0.14 0.2)
+  1 by 2 by 1 MPI processor grid
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+
+Reading STL file '../../../templates/meshes/cylinder_r0.040_h0.100.stl' (mesh processing step 1/3) 
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+Fix particledistribution/discrete (id pdd1): distribution based on mass%:
+    pts1: d=3.400000e-03 (max. bounding sphere) mass%=25.000000%
+    pts2: d=3.700000e-03 (max. bounding sphere) mass%=50.000000%
+    pts3: d=4.000000e-03 (max. bounding sphere) mass%=25.000000%
+Fix particledistribution/discrete (id pdd1): distribution based on number%:
+    pts1: d=3.400000e-03 (max. bounding sphere) number%=31.585425%
+    pts2: d=3.700000e-03 (max. bounding sphere) number%=49.017177%
+    pts3: d=4.000000e-03 (max. bounding sphere) number%=19.397399%
+Setting up run at Thu Jun 11 21:38:10 2026
+
+Import and parallelization of mesh cyl containing 96 triangle(s) successful
+INFO: Resetting random generator for region bc
+INFO: Particle insertion ins: inserting every 0 steps
+Memory usage per processor = 10.4417 Mbytes
+    Step    Atoms         KinEng            rke          ts[1]          ts[2] 
+       0        0              0              0              0              0 
+insertion: proc 0 at 0 %
+insertion: proc 1 at 0 %
+insertion: proc 0 at 10 %
+insertion: proc 1 at 10 %
+insertion: proc 0 at 20 %
+insertion: proc 1 at 20 %
+insertion: proc 0 at 30 %
+insertion: proc 1 at 30 %
+insertion: proc 0 at 40 %
+insertion: proc 1 at 40 %
+insertion: proc 1 at 50 %
+insertion: proc 0 at 50 %
+insertion: proc 1 at 60 %
+insertion: proc 0 at 60 %
+insertion: proc 1 at 70 %
+insertion: proc 0 at 70 %
+insertion: proc 1 at 80 %
+insertion: proc 0 at 80 %
+insertion: proc 1 at 90 %
+insertion: proc 0 at 90 %
+insertion: proc 0 at 100 %
+insertion: proc 1 at 100 %
+INFO: Particle insertion ins: inserted 4000 particle templates (mass 1.456172e-01) at step 1
+ - a total of 4000 particle templates (mass 1.456172e-01) inserted so far.
+    2000     4000   0.0014662914  1.6468643e-06    0.073452075    0.016958496 
+    4000     4000  8.0237639e-05  4.2289507e-06    0.073452075    0.018790362 
+    6000     4000   0.0023300981  4.0402803e-06    0.073452075    0.019720895 
+    8000     4000   0.0081755137  3.5756884e-06    0.073452075    0.021403925 
+   10000     4000    0.017604605  3.4676785e-06    0.073452075    0.022530935 
+   12000     4000    0.030618795  3.3925651e-06    0.073452075    0.023449653 
+   14000     4000    0.047220319  3.4262915e-06    0.073452075    0.024326134 
+   16000     4000    0.067410426  3.3276287e-06    0.073452075    0.025117196 
+   18000     4000    0.091185376  3.2275618e-06    0.073452075    0.025872582 
+   20000     4000     0.11854874  3.0715585e-06    0.073452075    0.026525411 
+   22000     4000     0.14950312  2.8268884e-06    0.073452075    0.027119687 
+   24000     4000     0.18404674  2.6416918e-06    0.073452075    0.027640988 
+   26000     4000     0.22217795  2.4794639e-06    0.073452075    0.028149062 
+   28000     4000      0.2638967  2.3678795e-06    0.073452075    0.028622912 
+   30000     4000     0.30920298  2.2778263e-06    0.073452075    0.029037915 
+   32000     4000     0.35809689  2.1850774e-06    0.073452075    0.029458351 
+   34000     4000     0.41057831  2.1256449e-06    0.073452075    0.029856076 
+   36000     4000     0.46664723   2.065494e-06    0.073452075    0.030233676 
+   38000     4000     0.52630372  2.0030685e-06    0.073452075    0.030593306 
+   40000     4000     0.58954769  1.9516493e-06    0.073452075    0.030936782 
+   42000     4000     0.65637919  1.8866243e-06    0.073452075    0.031265651 
+   44000     4000     0.72679817  1.8497287e-06    0.073452075     0.03158124 
+   46000     4000     0.80080467  1.8231353e-06    0.073452075    0.031884698 
+   48000     4000     0.87839868  1.7890075e-06    0.073452075    0.032177025 
+   50000     4000     0.95958018  1.7616013e-06    0.073452075    0.032459101 
+   50001     4000     0.95962167  1.7615869e-06    0.073452075    0.032459101 
+Loop time of 5.19294 on 2 procs for 50001 steps with 4000 atoms, finish time Thu Jun 11 21:38:16 2026
+
+
+Pair  time (%) = 2.21211 (42.5985)
+Neigh time (%) = 0.757697 (14.5909)
+Comm  time (%) = 0.349202 (6.72457)
+Outpt time (%) = 0.027959 (0.538404)
+Other time (%) = 1.84596 (35.5476)
+
+Nlocal:    2000 ave 2010 max 1990 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    362 ave 362 max 362 min
+Histogram: 2 0 0 0 0 0 0 0 0 0
+Neighs:    9018 ave 9094 max 8942 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 18036
+Ave neighs/atom = 4.509
+Neighbor list builds = 696
+Dangerous builds = 0
+AUDIT settle: step 50001  KE = 0.959621668349843 J  (target < 2e-8 J for quasi-static)
+Setting up run at Thu Jun 11 21:38:16 2026
+
+Memory usage per processor = 21.108 Mbytes
+    Step    Atoms         KinEng            rke          ts[1]          ts[2] 
+   50001     4000     0.95962167  1.7615869e-06    0.073452075    0.032459101 
+   52000     4000      1.0443492  1.7312192e-06    0.073452075      0.0327317 
+   54000     4000      1.1327057  1.7101257e-06    0.073452075     0.03299551 
+   56000     4000      1.2246497  1.6867264e-06    0.073452075    0.033251144 
+   58000     4000      1.3201812  1.6575347e-06    0.073452075    0.033499151 
+   60000     4000      1.4193002  1.6339077e-06    0.073452075    0.033740024 
+   62000     4000      1.5220067  1.6175258e-06    0.073452075    0.033974209 
+   64000     4000      1.6283007  1.6051469e-06    0.073452075     0.03420211 
+   66000     4000      1.7381821  1.5821024e-06    0.073452075    0.034424094 
+   68000     4000      1.8516511  1.5679977e-06    0.073452075    0.034640496 
+   70000     4000      1.9687076  1.5513021e-06    0.073452075    0.034851622 
+   72000     4000      2.0893515     1.5434e-06    0.073452075    0.035057752 
+   74000     4000       2.213583  1.5377856e-06    0.073452075    0.035259146 
+   76000     4000      2.3414019  1.5180905e-06    0.073452075    0.035456042 
+   78000     4000      2.4728083  1.5015146e-06    0.073452075    0.035648658 
+   80000     4000      2.6078023  1.4834417e-06    0.073452075      0.0358372 
+   82000     4000      2.7463837  1.4726994e-06    0.073452075    0.036021855 
+   84000     4000      2.8885526  1.4612706e-06    0.073452075      0.0362028 
+   86000     4000       3.034309  1.4516862e-06    0.073452075    0.036380198 
+   88000     4000      3.1836529  1.4459737e-06    0.073452075    0.036554203 
+   90000     4000      3.3365843  1.4324173e-06    0.073452075    0.036724955 
+   92000     4000      3.4931032  1.4238416e-06    0.073452075    0.036892591 
+   94000     4000      3.6532096  1.4186831e-06    0.073452075    0.037057233 
+   96000     4000      3.8169034  1.4118304e-06    0.073452075    0.037219001 
+   98000     4000      3.9841848  1.4079783e-06    0.073452075    0.037378004 
+  100000     4000      4.1550536  1.4029037e-06    0.073452075    0.037534347 
+  102000     4000        4.32951  1.3879215e-06    0.073452075    0.037688127 
+  104000     4000      4.5075538  1.3805884e-06    0.073452075    0.037839438 
+  106000     4000      4.6891852  1.3743271e-06    0.073452075    0.037988367 
+  108000     4000       4.874404  1.3680754e-06    0.073452075    0.038134996 
+  110000     4000      5.0632103  1.3583112e-06    0.073452075    0.038279405 
+  112000     4000      5.2556041  1.3543846e-06    0.073452075    0.038421666 
+  112501     4000      5.3043606  1.3539067e-06    0.073452075    0.038421666 
+Loop time of 14.2482 on 2 procs for 62500 steps with 4000 atoms, finish time Thu Jun 11 21:38:30 2026
+
+
+Pair  time (%) = 3.01376 (21.1519)
+Neigh time (%) = 7.09065 (49.7654)
+Comm  time (%) = 0.666278 (4.67624)
+Outpt time (%) = 0.03391 (0.237996)
+Other time (%) = 3.44356 (24.1685)
+
+Nlocal:    2000 ave 2012 max 1988 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    358.5 ave 359 max 358 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    9649.5 ave 9765 max 9534 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 19299
+Ave neighs/atom = 4.82475
+Neighbor list builds = 2989
+Dangerous builds = 0
+Setting up run at Thu Jun 11 21:38:30 2026
+
+Memory usage per processor = 41.4247 Mbytes
+    Step    Atoms         KinEng            rke          ts[1]          ts[2] 
+  112501     4000      5.3043606  1.3539067e-06    0.073452075    0.038421666 
+  114000     4000      5.4515854   1.344885e-06    0.073452075    0.038561852 
+  116000     4000      5.6511541  1.3416122e-06    0.073452075    0.038700028 
+  118000     4000      5.8543104  1.3361028e-06    0.073452075    0.038836258 
+  120000     4000      6.0610542  1.3341411e-06    0.073452075    0.038970603 
+  122000     4000      6.2713854  1.3305681e-06    0.073452075    0.039103121 
+  124000     4000      6.4853042  1.3266911e-06    0.073452075    0.039233867 
+  126000     4000      6.7028104  1.3247518e-06    0.073452075    0.039362892 
+  128000     4000      6.9239041  1.3232587e-06    0.073452075    0.039490248 
+  130000     4000      7.1485853  1.3178231e-06    0.073452075    0.039615982 
+  132000     4000      7.3768541  1.3114709e-06    0.073452075    0.039740139 
+  134000     4000      7.6087102  1.3084278e-06    0.073452075    0.039862765 
+  136000     4000      7.8441539  1.3052079e-06    0.073452075    0.039983899 
+  138000     4000      8.0831851  1.3010992e-06    0.073452075    0.040103583 
+  140000     4000      8.3258038  1.2972191e-06    0.073452075    0.040221856 
+  142000     4000      8.5720099   1.290496e-06    0.073452075    0.040338753 
+  144000     4000      8.8218036  1.2877689e-06    0.073452075    0.040454311 
+  146000     4000      9.0751847  1.2766742e-06    0.073452075    0.040568563 
+  148000     4000      9.3321533  1.2741004e-06    0.073452075    0.040681543 
+  150000     4000      9.5927094  1.2716742e-06    0.073452075    0.040793281 
+  152000     4000      9.8568531  1.2595636e-06    0.073452075    0.040903808 
+  154000     4000      10.124584   1.254021e-06    0.073452075    0.041013154 
+  156000     4000      10.395903  1.2500143e-06    0.073452075    0.041121345 
+  158000     4000      10.670809  1.2479895e-06    0.073452075     0.04122841 
+  160000     4000      10.949302  1.2461537e-06    0.073452075    0.041334374 
+  162000     4000      11.231383  1.2433811e-06    0.073452075    0.041439263 
+  162502     4000      11.302749  1.2428099e-06    0.073452075    0.041439263 
+Loop time of 29.9215 on 2 procs for 50001 steps with 4000 atoms, finish time Thu Jun 11 21:39:00 2026
+
+
+Pair  time (%) = 2.64303 (8.83321)
+Neigh time (%) = 22.392 (74.8358)
+Comm  time (%) = 1.10461 (3.69169)
+Outpt time (%) = 0.033104 (0.110636)
+Other time (%) = 3.74877 (12.5287)
+
+Nlocal:    2000 ave 2004 max 1996 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    357 ave 363 max 351 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    10000.5 ave 10052 max 9949 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 20001
+Ave neighs/atom = 5.00025
+Neighbor list builds = 4033
+Dangerous builds = 0
+AUDIT relax: KE = 11.3027490125012 J  (heap should be static)
+       49.55 real        79.27 user        14.70 sys

@@ -1,0 +1,18 @@
+{
+  "aor_deg": 26.24239763143788,
+  "aor_sector_mean_deg": 25.774150771923296,
+  "aor_sector_std_deg": 1.360582646219537,
+  "fit_r2": 0.9313942287303912,
+  "fit_n_bins": 778,
+  "method": "height_window+shell",
+  "peak_height_m": 0.0311431,
+  "base_radius_m": 0.068635,
+  "bulk_density_kgm3": 774.3729499628938,
+  "bulk_density_total_kgm3": 721.4160258469799,
+  "fill_height_m": 0.040153911,
+  "n_atoms": 4000,
+  "warnings": [],
+  "plot_path": "results/phase5-contact-sheet/f65r10/profile_fit.png",
+  "snapshot_path": "results/phase5-contact-sheet/f65r10/snapshot.png",
+  "tag": "f65r10"
+}

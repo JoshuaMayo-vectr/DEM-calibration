@@ -1,0 +1,18 @@
+{
+  "aor_deg": 32.7924438790422,
+  "aor_sector_mean_deg": 32.9647810722731,
+  "aor_sector_std_deg": 1.0059951851554534,
+  "fit_r2": 0.9446713848524436,
+  "fit_n_bins": 623,
+  "method": "height_window+shell",
+  "peak_height_m": 0.0356642,
+  "base_radius_m": 0.06512,
+  "bulk_density_kgm3": 762.1276532106386,
+  "bulk_density_total_kgm3": 712.1675657150482,
+  "fill_height_m": 0.040680421,
+  "n_atoms": 4000,
+  "warnings": [],
+  "plot_path": "results/phase5-contact-sheet/f50r20/profile_fit.png",
+  "snapshot_path": "results/phase5-contact-sheet/f50r20/snapshot.png",
+  "tag": "f50r20"
+}

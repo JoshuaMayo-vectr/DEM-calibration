@@ -1,0 +1,18 @@
+{
+  "aor_deg": 28.285031420221976,
+  "aor_sector_mean_deg": 28.738920454423294,
+  "aor_sector_std_deg": 0.36784543993476476,
+  "fit_r2": 0.9390423421830318,
+  "fit_n_bins": 806,
+  "method": "height_window+shell",
+  "peak_height_m": 0.0328858,
+  "base_radius_m": 0.068635,
+  "bulk_density_kgm3": 765.2870559551676,
+  "bulk_density_total_kgm3": 718.4524291061044,
+  "fill_height_m": 0.040322253999999995,
+  "n_atoms": 4000,
+  "warnings": [],
+  "plot_path": "results/phase5-contact-sheet/f55r15/profile_fit.png",
+  "snapshot_path": "results/phase5-contact-sheet/f55r15/snapshot.png",
+  "tag": "f55r15"
+}

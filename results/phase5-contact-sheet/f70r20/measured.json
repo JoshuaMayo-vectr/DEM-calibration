@@ -1,0 +1,18 @@
+{
+  "aor_deg": 34.364337426353266,
+  "aor_sector_mean_deg": 34.37457870025946,
+  "aor_sector_std_deg": 1.1250800275781665,
+  "fit_r2": 0.9472482336421082,
+  "fit_n_bins": 539,
+  "method": "height_window+shell",
+  "peak_height_m": 0.0359057,
+  "base_radius_m": 0.068635,
+  "bulk_density_kgm3": 743.0660003213202,
+  "bulk_density_total_kgm3": 701.3897124064443,
+  "fill_height_m": 0.04130317399999999,
+  "n_atoms": 4000,
+  "warnings": [],
+  "plot_path": "results/phase5-contact-sheet/f70r20/profile_fit.png",
+  "snapshot_path": "results/phase5-contact-sheet/f70r20/snapshot.png",
+  "tag": "f70r20"
+}

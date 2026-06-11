@@ -1,0 +1,18 @@
+{
+  "aor_deg": 17.01489686513084,
+  "aor_sector_mean_deg": 17.09702300707642,
+  "aor_sector_std_deg": 0.32829673866666886,
+  "fit_r2": 0.8816337625531413,
+  "fit_n_bins": 1191,
+  "method": "height_window+shell",
+  "peak_height_m": 0.023675,
+  "base_radius_m": 0.075665,
+  "bulk_density_kgm3": 807.4681013069965,
+  "bulk_density_total_kgm3": 752.9935937091158,
+  "fill_height_m": 0.038472599999999996,
+  "n_atoms": 4000,
+  "warnings": [],
+  "plot_path": "results/phase5-contact-sheet/f30r05/profile_fit.png",
+  "snapshot_path": "results/phase5-contact-sheet/f30r05/snapshot.png",
+  "tag": "f30r05"
+}

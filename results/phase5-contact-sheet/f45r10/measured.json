@@ -1,0 +1,18 @@
+{
+  "aor_deg": 24.271752069390647,
+  "aor_sector_mean_deg": 24.108587735155233,
+  "aor_sector_std_deg": 0.4218533106960486,
+  "fit_r2": 0.921474216839999,
+  "fit_n_bins": 878,
+  "method": "height_window+shell",
+  "peak_height_m": 0.0294786,
+  "base_radius_m": 0.068635,
+  "bulk_density_kgm3": 782.5120672970445,
+  "bulk_density_total_kgm3": 731.5656888090339,
+  "fill_height_m": 0.039601742999999995,
+  "n_atoms": 4000,
+  "warnings": [],
+  "plot_path": "results/phase5-contact-sheet/f45r10/profile_fit.png",
+  "snapshot_path": "results/phase5-contact-sheet/f45r10/snapshot.png",
+  "tag": "f45r10"
+}
