@@ -9,7 +9,7 @@
 | 2  | Physical ground truth (material, PSD, densities, measured angle of repose) | ✅ (literature substitute) |
 | ⚑  | **Checkpoint 1 — Stack viable & targets measurable** | ✅ (via literature substitute) |
 | 3  | Parameterized angle-of-repose simulation template | ✅ |
-| 4  | Automated measurement module (heap-angle fit, bulk density, noise floor) | ⬜ |
+| 4  | Automated measurement module (heap-angle fit, bulk density, noise floor) | ✅ |
 | 5  | Visualization layer (OVITO interactive + headless snapshots + audit plots) | ⬜ |
 | ⚑  | **Checkpoint 2 — Simulation credible & objective trustworthy** | ⬜ |
 | 6  | Simulation driver (templating, parallel execution, result cache) | ⬜ |
@@ -185,7 +185,14 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 
 **Risks.** This is the highest-leverage failure point in the project — a silently wrong angle fit poisons every optimizer trial. Hence the audit plot on every call and the synthetic-heap tests. Seed noise exceeding physical σ → average more seeds per candidate or enlarge the heap.
 
-**Lessons learned.** _(placeholder)_
+**Lessons learned.** *(completed 2026-06-11 — module [calibration/measure.py](calibration/measure.py), tests in `tests/`, noise study + run record in [results/phase4-noise/](results/phase4-noise/NOTES.md))*
+
+- **All three exit criteria met:** 13 synthetic/regression tests green (cones 15/25/30° within ±0.5°); manual grid readout vs automated angle agrees to 0.2° (med) / 0.8° (high); **seed noise floor σ = 0.82° < 1.5° physical σ** (5 seeds at the high set, mean 29.40°, range 1.96°).
+- **Binned profile fits carry an extreme-value bias** (~0.8° on synthetic cones): per-bin max-statistics sit closer to the true surface where bins are populous, tilting the fit. Fixed with a two-stage fit — binned fit for the initial line, then OLS over all particle tops within ±0.75 diameter of it (constant-thickness shell → bias becomes a constant offset that cancels in slope). Sector fits reuse the pooled line; standalone quadrant fits are too sparse to trust.
+- Accuracy on volume-matched synthetic cones (12–30°, 10 seeds each): mean |error| ≈ 0.26°, worst 0.6° — well under the 1.5° target tolerance.
+- **The toe-free fit reads above crude on every Phase-3 dump**, as predicted: med 18.4° → 19.2°, high 26.1° → **29.4° (5-seed mean)**. The 27° target is now *bracketed inside* the med–high range instead of sitting at its corner — the Phase-3 "high-μ_r corner" worry has relaxed (see open questions).
+- Bulk density from the settle-end frame (interior-slab estimator): 753–834 kg/m³ across all runs vs literature ≈ 780 — the fixed PSD/particle-density inputs land the packing right with zero calibration; seed noise on density is negligible (±4 kg/m³).
+- **Optimizer guidance for Phases 6–8:** average 2 seeds per candidate (σ/√2 ≈ 0.6°); per-run wall time at the high set confirmed 3.8–4.0 min on 2 ranks.
 
 ---
 
@@ -296,7 +303,7 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 - **Single- vs multi-objective.** Weighted sum is simpler; NSGA-II shows the trade-off front. Lean weighted-sum until the front itself proves informative.
 - **Compute budget.** Calibration on this MacBook alone, or is a beefier box/cloud burst available for the LHS screen and optimizer runs? Changes Phase 6's parallelism design.
 - ~~**Particle upscaling.**~~ **Resolved (2026-06-11): not needed.** Wheat-scale spheres (3.4–4.0 mm, 4000 particles) run in 2.8–3.9 min un-coarsened — Phase 3 sized the problem and it fits the budget as-is.
-- **μ_r ceiling (new, from Phase 3).** The 27° target is only reached near the top of the rolling-friction range (26.1° at μ_r = 0.15); published wheat friction values give only ~18° with single spheres. Does Phase 7 widen the μ_r range above 0.15, or is multisphere the honest fix? Decide at Checkpoint 3.
+- **μ_r ceiling (from Phase 3, downgraded by Phase 4).** Phase 3's crude fit put the 27° target at the extreme corner of the ranges (26.1° at μ_r = 0.15). The Phase-4 toe-free measurement reads the same heap at **29.4° ± 0.8°** — the target is now bracketed inside the med–high range and the published ranges appear sufficient without widening. Confirm with the LHS screen at Checkpoint 3; multisphere remains the fallback if the optimum still crowds the μ_r ceiling.
 
 ## Repository layout
 
