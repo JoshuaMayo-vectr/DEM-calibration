@@ -1,0 +1,297 @@
+LIGGGHTS (Version LIGGGHTS-PUBLIC 3.8.0, compiled 2026-06-11-14:52:41 by joshuamayo, git commit 3d5c00f20519e6bb6eb6756f51f1ad36564e649d)
+# Moving mesh example
+
+atom_style	granular
+boundary	m m m
+newton		off
+
+communicate	single vel yes
+units		si
+
+#region		reg block -.1 0.6 -.1 0.2 -0.3 0.25 units box
+region		reg block -1 1 -.5 .5 -.5 .5 units box
+create_box	1 reg
+Created orthogonal box = (-1 -0.5 -0.5) to (1 0.5 0.5)
+  2 by 1 by 1 MPI processor grid
+
+neighbor	0.05 bin
+neigh_modify	delay 0
+
+#Material properties
+fix 		m1 all property/global youngsModulus peratomtype 5.e6
+fix 		m2 all property/global poissonsRatio peratomtype 0.45
+fix 		m3 all property/global coefficientRestitution peratomtypepair 1 0.9
+fix 		m4 all property/global coefficientFriction peratomtypepair 1 0.05
+fix 		m5 all property/global characteristicVelocity scalar 2.
+
+#pair style
+pair_style gran model hooke tangential history #Hooke without cohesion
+pair_coeff	* *
+
+timestep	0.00005
+
+fix		1 all nve/sphere
+fix		2 all gravity 9.81 vector 0.0 0.0 -1.0
+
+#box walls
+fix boxwalls_x1 all wall/gran model hooke tangential history primitive type 1 xplane -1.0
+fix boxwalls_x2 all wall/gran model hooke tangential history primitive type 1 xplane +1.0
+fix boxwalls_y1 all wall/gran model hooke tangential history primitive type 1 yplane -0.5
+fix boxwalls_y2 all wall/gran model hooke tangential history primitive type 1 yplane +0.5
+fix boxwalls_z1 all wall/gran model hooke tangential history primitive type 1 zplane -0.5
+fix boxwalls_z2 all wall/gran model hooke tangential history primitive type 1 zplane +0.5
+
+#import mesh from cad:
+fix		cad1 all mesh/surface file meshes/bucket.stl type 1  move -50. -250. 0. 		scale 0.002  rotate axis 0. 1. 0. angle 90.  rotate axis 0. 0. 1. angle 90.
+
+#region of insertion
+region		bc block -0.9 0.9 -0.4 0.4 -0.5 -0.0 units box
+
+#particle distributions
+fix			pts1 all particletemplate/sphere 15485863 atom_type 1 density constant 2500 radius constant 0.04
+fix			pdd1 all particledistribution/discrete 15485867 1 pts1 1.0
+
+fix			ins all insert/pack seed 32452843 distributiontemplate pdd1 vel constant 0. 0. -0.8 				insert_every 2000 overlapcheck yes all_in yes particles_in_region 1500 region bc
+
+#thermo settings
+compute		1 all erotate/sphere
+thermo_style	custom step atoms ke c_1 vol
+thermo		1000
+thermo_modify	lost ignore norm no
+
+
+#make a dump of particles and the stl file
+dump	dmp all custom 200 post/movingMesh_*.liggghts id type x y z ix iy iz vx vy vz fx fy fz omegax omegay omegaz radius
+dump 	dumpstl all mesh/stl 200 post/dump*.stl
+
+#run with particle insertion
+run		8000 upto
+Setting up run at Thu Jun 11 16:12:12 2026
+
+INFO: Particle insertion ins: inserting every 2000 steps
+Memory usage per processor = 4.26553 Mbytes
+    Step    Atoms         KinEng              1         Volume 
+       0        0              0              0              2 
+INFO: Particle insertion ins: inserted 758 particle templates (mass 5.080165e+02) at step 1
+ - a total of 758 particle templates (mass 5.080165e+02) inserted so far.
+WARNING: Particle insertion: Less insertions than requested (../fix_insert.cpp:814)
+    1000      758      326.06296     0.93080706              2 
+    2000      758      417.08429       4.045429              2 
+INFO: Particle insertion ins: inserted 206 particle templates (mass 1.380625e+02) at step 2001
+ - a total of 964 particle templates (mass 6.460790e+02) inserted so far.
+WARNING: Particle insertion: Less insertions than requested (../fix_insert.cpp:814)
+    3000      964      459.84112      8.0061345              2 
+    4000      964      382.50321      10.953499              2 
+INFO: Particle insertion ins: inserted 199 particle templates (mass 1.333711e+02) at step 4001
+ - a total of 1163 particle templates (mass 7.794501e+02) inserted so far.
+WARNING: Particle insertion: Less insertions than requested (../fix_insert.cpp:814)
+    5000     1163      358.69343      12.232957              2 
+    6000     1163      278.76542      11.985123              2 
+INFO: Particle insertion ins: inserted 165 particle templates (mass 1.105841e+02) at step 6001
+ - a total of 1328 particle templates (mass 8.900341e+02) inserted so far.
+WARNING: Particle insertion: Less insertions than requested (../fix_insert.cpp:814)
+    7000     1328      255.46131       10.72196              2 
+    8000     1328      189.82388      9.6870352              2 
+Loop time of 0.50668 on 2 procs for 8000 steps with 1328 atoms, finish time Thu Jun 11 16:12:12 2026
+
+
+Pair  time (%) = 0.264979 (52.297)
+Neigh time (%) = 0.0085485 (1.68716)
+Comm  time (%) = 0.031112 (6.14036)
+Outpt time (%) = 0.0398875 (7.87233)
+Other time (%) = 0.162153 (32.0031)
+
+Nlocal:    664 ave 666 max 662 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    93 ave 95 max 91 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    4377 ave 4395 max 4359 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 8754
+Ave neighs/atom = 6.59187
+Neighbor list builds = 34
+Dangerous builds = 0
+unfix	ins
+
+#run to let particle settle
+run		29999 upto
+Setting up run at Thu Jun 11 16:12:12 2026
+
+Memory usage per processor = 9.86816 Mbytes
+    Step    Atoms         KinEng              1         Volume 
+    8000     1328      189.82388      9.6870352              2 
+    9000     1328      119.39883      8.1304835              2 
+   10000     1328      74.706233      6.0362679              2 
+   11000     1328      54.297611      4.5825452              2 
+   12000     1328      40.069127      3.5904712              2 
+   13000     1328      28.466721       2.801924              2 
+   14000     1328      19.767701      2.1162355              2 
+   15000     1328      13.086501      1.6444911              2 
+   16000     1328      9.2086651      1.3035747              2 
+   17000     1328      6.3061765     0.95578052              2 
+   18000     1328      4.2258963     0.71099908              2 
+   19000     1328      2.7957426     0.52978177              2 
+   20000     1328      2.1878527     0.41076549              2 
+   21000     1328      1.2624969      0.3164585              2 
+   22000     1328     0.77525831     0.22698258              2 
+   23000     1328     0.43584283     0.15969911              2 
+   24000     1328     0.43870423     0.12638824              2 
+   25000     1328     0.23920357    0.097954438              2 
+   26000     1328    0.091012671    0.058806712              2 
+   27000     1328    0.035456997    0.025126503              2 
+   28000     1328    0.017606173      0.0148615              2 
+   29000     1328   0.0092789271   0.0072249867              2 
+   29999     1328   0.0027383896    0.003525862              2 
+Loop time of 3.05218 on 2 procs for 21999 steps with 1328 atoms, finish time Thu Jun 11 16:12:16 2026
+
+
+Pair  time (%) = 2.11852 (69.41)
+Neigh time (%) = 0.007618 (0.249592)
+Comm  time (%) = 0.0702115 (2.30037)
+Outpt time (%) = 0.134049 (4.39191)
+Other time (%) = 0.721782 (23.6481)
+
+Nlocal:    664 ave 665 max 663 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    87 ave 88 max 86 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    4883.5 ave 4907 max 4860 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 9767
+Ave neighs/atom = 7.35467
+Neighbor list builds = 24
+Dangerous builds = 0
+
+#use the imported mesh as granular wall
+fix bucket_wall all wall/gran model hooke tangential history mesh n_meshes 1 meshes cad1
+run		30000 upto
+Setting up run at Thu Jun 11 16:12:16 2026
+
+Memory usage per processor = 12.6148 Mbytes
+    Step    Atoms         KinEng              1         Volume 
+   29999     1328   0.0027383896    0.003525862              2 
+   30000     1328   0.0027367059   0.0035193191              2 
+Loop time of 0.001306 on 2 procs for 1 steps with 1328 atoms, finish time Thu Jun 11 16:12:16 2026
+
+
+Pair  time (%) = 0.0001185 (9.07351)
+Neigh time (%) = 0 (0)
+Comm  time (%) = 2e-06 (0.153139)
+Outpt time (%) = 0.0011555 (88.4763)
+Other time (%) = 3e-05 (2.29709)
+
+Nlocal:    664 ave 665 max 663 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    87.5 ave 89 max 86 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    4889.5 ave 4906 max 4873 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 9779
+Ave neighs/atom = 7.3637
+Neighbor list builds = 0
+Dangerous builds = 0
+
+#moving mesh
+fix		movecad1 all move/mesh mesh cad1  linear -0.5 0. -0.3
+
+#run
+run		15000
+Setting up run at Thu Jun 11 16:12:16 2026
+
+Memory usage per processor = 12.6148 Mbytes
+    Step    Atoms         KinEng              1         Volume 
+   30000     1328   0.0027367059   0.0035193191              2 
+   31000     1328   0.0014034255   0.0017659215              2 
+   32000     1328     0.25272284    0.018905776              2 
+   33000     1328      1.0575409     0.11961753              2 
+   34000     1328      2.5506837     0.28118109              2 
+   35000     1328      3.4923698     0.36179977              2 
+   36000     1328      2.3581748     0.36251886              2 
+   37000     1328      3.2586319     0.41632785              2 
+   38000     1328      3.2751539     0.51323467              2 
+   39000     1328      4.7966592     0.65933291              2 
+   40000     1328      5.0882074     0.79625511              2 
+   41000     1328      4.7417477     0.74447428              2 
+   42000     1328      7.1988557     0.96141534              2 
+   43000     1328      6.9757218       1.027631              2 
+   44000     1328      6.2265158      1.0171573              2 
+   45000     1328      7.5735501      1.1437076              2 
+Loop time of 2.6956 on 2 procs for 15000 steps with 1328 atoms, finish time Thu Jun 11 16:12:18 2026
+
+
+Pair  time (%) = 1.75243 (65.0107)
+Neigh time (%) = 0.0082615 (0.306481)
+Comm  time (%) = 0.050546 (1.87513)
+Outpt time (%) = 0.116497 (4.32175)
+Other time (%) = 0.767867 (28.486)
+
+Nlocal:    664 ave 671 max 657 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    78 ave 78 max 78 min
+Histogram: 2 0 0 0 0 0 0 0 0 0
+Neighs:    4809.5 ave 4825 max 4794 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 9619
+Ave neighs/atom = 7.24322
+Neighbor list builds = 25
+Dangerous builds = 0
+
+#now lift the particles up
+unfix		movecad1
+fix			movecad2 all move/mesh mesh cad1   rotate origin 0. 0. 0. axis 0. 1. 0. period 2.
+run			25000
+Setting up run at Thu Jun 11 16:12:18 2026
+
+Memory usage per processor = 12.6152 Mbytes
+    Step    Atoms         KinEng              1         Volume 
+   45000     1328      7.5735501      1.1437076              2 
+   46000     1328      30.795693      1.8754036              2 
+   47000     1328      26.136441      2.0120493              2 
+   48000     1328      20.454388      1.7322808              2 
+   49000     1328      21.288699      1.5715659              2 
+   50000     1328      21.092706      1.3459293              2 
+   51000     1328      18.598136       1.192419              2 
+   52000     1328      16.706244      1.0679488              2 
+   53000     1328      15.414485     0.99627429              2 
+   54000     1328      16.313145      0.9932576              2 
+   55000     1328      11.511291      0.9609306              2 
+   56000     1328      11.504441     0.92625307              2 
+   57000     1328      10.055474     0.88112764              2 
+   58000     1328      10.281502     0.74715769              2 
+   59000     1328       8.367404     0.70484243              2 
+   60000     1328      8.5601656     0.61239525              2 
+   61000     1328      8.5836525     0.53697726              2 
+   62000     1328      8.8548913     0.47564998              2 
+   63000     1328      6.9872457     0.47018355              2 
+   64000     1328      6.9020687     0.45061419              2 
+   65000     1328      7.9412667     0.39385211              2 
+   66000     1328      10.255213     0.34738387              2 
+   67000     1328      9.5456856     0.42682651              2 
+   68000     1328      9.9502424     0.43996002              2 
+   69000     1328      9.6976532     0.49160305              2 
+   70000     1328      8.9761041     0.47927789              2 
+Loop time of 4.34136 on 2 procs for 25000 steps with 1328 atoms, finish time Thu Jun 11 16:12:23 2026
+
+
+Pair  time (%) = 2.81687 (64.8846)
+Neigh time (%) = 0.032656 (0.752208)
+Comm  time (%) = 0.082747 (1.90602)
+Outpt time (%) = 0.15964 (3.6772)
+Other time (%) = 1.24944 (28.78)
+
+Nlocal:    664 ave 668 max 660 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    79 ave 79 max 79 min
+Histogram: 2 0 0 0 0 0 0 0 0 0
+Neighs:    4827.5 ave 4890 max 4765 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 9655
+Ave neighs/atom = 7.27033
+Neighbor list builds = 97
+Dangerous builds = 0
+

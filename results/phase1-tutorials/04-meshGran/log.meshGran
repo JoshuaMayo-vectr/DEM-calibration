@@ -1,0 +1,214 @@
+LIGGGHTS (Version LIGGGHTS-PUBLIC 3.8.0, compiled 2026-06-11-14:52:41 by joshuamayo, git commit 3d5c00f20519e6bb6eb6756f51f1ad36564e649d)
+# Wall import from CAD
+atom_style	granular
+boundary	m m m
+newton		off
+atom_modify	sort 0 0
+
+communicate	single vel yes
+units		si
+
+region		reg block -0.01 0.51 -0.06 0.01 -1.22 0.01  units box
+create_box	1 reg
+Created orthogonal box = (-0.01 -0.06 -1.22) to (0.51 0.01 0.01)
+  1 by 1 by 2 MPI processor grid
+
+neighbor	0.02 bin
+neigh_modify	delay 0
+
+#Material properties required for new pair styles
+
+fix 		m1 all property/global youngsModulus peratomtype 5.e6
+fix 		m2 all property/global poissonsRatio peratomtype 0.45
+fix 		m3 all property/global coefficientRestitution peratomtypepair 1 0.7
+fix 		m4 all property/global coefficientFriction peratomtypepair 1 0.05
+fix 		m5 all property/global characteristicVelocity scalar 2.
+
+#New pair style
+pair_style gran model hooke tangential history #Hooke without cohesion
+pair_coeff	* *
+
+timestep	0.00005
+
+fix		1 all nve/sphere
+fix		2 all gravity 9.81 vector 0.0 0.0 -1.0
+
+#import triangular mesh
+fix		cad all mesh/surface file meshes/mesh.stl type 1 scale 0.001 move 0. 0. 0. rotate axis 1. 0. 0. angle -90. #temperature 100.
+
+#use the imported mesh as granular wall
+fix granwalls all wall/gran model hooke tangential history mesh n_meshes 1 meshes cad
+
+#definition of insertion face
+fix		inface all mesh/surface file meshes/insertion_face.stl type 1
+
+#distributions for insertion
+fix		pts1 all particletemplate/sphere 15485863 atom_type 1 density constant 2500 radius constant 0.005
+fix		pdd1 all particledistribution/discrete 15485867 1 pts1 1.0
+
+group		nve_group region reg
+0 atoms in group nve_group
+
+#particle insertion
+fix		ins nve_group insert/stream seed 32452843 distributiontemplate pdd1 			maxattempt 100 nparticles 10000 particlerate 1000 overlapcheck yes all_in no vel constant 0. 0. -1.0 			insertion_face inface extrude_length 0.02
+
+fix		ts all check/timestep/gran 1000 0.1 0.1
+compute		1 all erotate/sphere
+thermo_style	custom step atoms ke c_1 f_ts[1] f_ts[2] vol
+thermo		1000
+thermo_modify	lost ignore norm no
+
+#dump commands
+dump		dmp all custom 300 post/meshGran_*.liggghts id type x y z ix iy iz vx vy vz fx fy fz omegax omegay omegaz radius
+dump 		dmpstl all mesh/stl 300 post/dump*.stl
+
+#insert particles
+run			10000 upto
+Setting up run at Thu Jun 11 16:12:08 2026
+
+WARNING: Fix mesh: Mesh contains highly skewed element, moving mesh (if used) will not parallelize well (../surface_mesh_I.h:657)
+INFO: Particle insertion ins: 20.000000 particles every 400 steps - particle rate 1000.000000, (mass rate 1.308997e+00)
+      10000 particles (mass 1.308997e+01) within 200000 steps
+Memory usage per processor = 6.78873 Mbytes
+    Step    Atoms         KinEng              1          ts[1]          ts[2]         Volume 
+       0        0              0              0              0              0       0.044772 
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 1
+ - a total of 20 particle templates (mass 2.617994e-02) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 401
+ - a total of 40 particle templates (mass 5.235988e-02) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 801
+ - a total of 60 particle templates (mass 7.853982e-02) inserted so far.
+    1000       60    0.053631116              0     0.07941224    0.036596884       0.044772 
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 1201
+ - a total of 80 particle templates (mass 1.047198e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 1601
+ - a total of 100 particle templates (mass 1.308997e-01) inserted so far.
+    2000      100     0.13898451              0     0.07941224    0.038825257       0.044772 
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 2001
+ - a total of 120 particle templates (mass 1.570796e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 2401
+ - a total of 140 particle templates (mass 1.832596e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 2801
+ - a total of 160 particle templates (mass 2.094395e-01) inserted so far.
+    3000      160     0.27420385  0.00012585475     0.07941224    0.040434613       0.044772 
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 3201
+ - a total of 180 particle templates (mass 2.356194e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 3601
+ - a total of 200 particle templates (mass 2.617994e-01) inserted so far.
+    4000      200     0.35947568   0.0013727532     0.07941224    0.042015269       0.044772 
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 4001
+ - a total of 220 particle templates (mass 2.879793e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 4401
+ - a total of 240 particle templates (mass 3.141593e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 4801
+ - a total of 260 particle templates (mass 3.403392e-01) inserted so far.
+    5000      260     0.46411051   0.0025536718     0.07941224     0.04277133       0.044772 
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 5201
+ - a total of 280 particle templates (mass 3.665191e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 5601
+ - a total of 300 particle templates (mass 3.926991e-01) inserted so far.
+    6000      300     0.61841105   0.0034464175     0.07941224    0.044000136       0.044772 
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 6001
+ - a total of 320 particle templates (mass 4.188790e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 6401
+ - a total of 340 particle templates (mass 4.450590e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 6801
+ - a total of 360 particle templates (mass 4.712389e-01) inserted so far.
+    7000      360     0.85072164   0.0041122709     0.07941224    0.045344627       0.044772 
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 7201
+ - a total of 380 particle templates (mass 4.974188e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 7601
+ - a total of 400 particle templates (mass 5.235988e-01) inserted so far.
+    8000      400      1.1737584   0.0048838854     0.07941224    0.046363051       0.044772 
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 8001
+ - a total of 420 particle templates (mass 5.497787e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 8401
+ - a total of 440 particle templates (mass 5.759587e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 8801
+ - a total of 460 particle templates (mass 6.021386e-01) inserted so far.
+    9000      460      1.5601456   0.0060123518     0.07941224     0.04657932       0.044772 
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 9201
+ - a total of 480 particle templates (mass 6.283185e-01) inserted so far.
+INFO: Particle insertion ins: inserted 20 particle templates (mass 2.617994e-02) at step 9601
+ - a total of 500 particle templates (mass 6.544985e-01) inserted so far.
+   10000      500      1.9084542   0.0078055847     0.07941224    0.046125655       0.044772 
+Loop time of 0.489764 on 2 procs for 10000 steps with 500 atoms, finish time Thu Jun 11 16:12:08 2026
+
+
+Pair  time (%) = 0.060328 (12.3178)
+Neigh time (%) = 0.010759 (2.19677)
+Comm  time (%) = 0.0097515 (1.99106)
+Outpt time (%) = 0.022384 (4.57036)
+Other time (%) = 0.386541 (78.924)
+
+Nlocal:    250 ave 372 max 128 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    6 ave 6 max 6 min
+Histogram: 2 0 0 0 0 0 0 0 0 0
+Neighs:    2082 ave 3964 max 200 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 4164
+Ave neighs/atom = 8.328
+Neighbor list builds = 170
+Dangerous builds = 0
+unfix		ins
+
+#run
+run			40000 upto
+Setting up run at Thu Jun 11 16:12:08 2026
+
+Memory usage per processor = 10.1976 Mbytes
+    Step    Atoms         KinEng              1          ts[1]          ts[2]         Volume 
+   10000      500      1.9084542   0.0078055847     0.07941224    0.046125655       0.044772 
+   11000      500      2.0783156     0.01260866     0.07941224    0.046297364       0.044772 
+   12000      500      2.1582255    0.016684722     0.07941224    0.046241081       0.044772 
+   13000      500      2.1806612    0.022186907     0.07941224    0.046013826       0.044772 
+   14000      500      2.1117446    0.023359638     0.07941224    0.045953034       0.044772 
+   15000      500      1.9696377    0.022977389     0.07941224    0.046167082       0.044772 
+   16000      500      1.7234059    0.021318748     0.07941224    0.046108105       0.044772 
+   17000      500      1.5392217    0.019250448     0.07941224    0.046141153       0.044772 
+   18000      500      1.1006415    0.021158094     0.07941224    0.046291401       0.044772 
+   19000      500     0.66792865    0.018696905     0.07941224     0.04594207       0.044772 
+   20000      500     0.43360157    0.015053569     0.07941224    0.045678627       0.044772 
+   21000      500     0.40739476    0.011884242     0.07941224    0.045474251       0.044772 
+   22000      500     0.33905202   0.0099779267     0.07941224    0.045415004       0.044772 
+   23000      500     0.23085501   0.0075691992     0.07941224    0.045403072       0.044772 
+   24000      500     0.16642957    0.006039736     0.07941224    0.045310166       0.044772 
+   25000      500     0.12818315   0.0049703764     0.07941224    0.045431268       0.044772 
+   26000      500    0.098232859   0.0041638847     0.07941224    0.045364087       0.044772 
+   27000      500    0.073272538   0.0030518522     0.07941224    0.045460346       0.044772 
+   28000      500     0.04444796   0.0025698295     0.07941224     0.04434832       0.044772 
+   29000      500    0.043545601   0.0019995587     0.07941224    0.045458344       0.044772 
+   30000      500    0.033766914   0.0015183854     0.07941224    0.042859952       0.044772 
+   31000      500     0.03673881   0.0010301723     0.07941224    0.044121251       0.044772 
+   32000      500    0.042335939  0.00080493996     0.07941224    0.045252932       0.044772 
+   33000      500    0.026531619  0.00078760761     0.07941224    0.044610532       0.044772 
+   34000      500    0.019082689   0.0007686467     0.07941224    0.045169684       0.044772 
+   35000      500    0.010381403  0.00073031717     0.07941224    0.040936761       0.044772 
+   36000      500    0.010189255  0.00058877663     0.07941224    0.042430963       0.044772 
+   37000      500     0.01192359  0.00051867433     0.07941224    0.043740287       0.044772 
+   38000      500    0.014621799  0.00042753547     0.07941224    0.044909378       0.044772 
+   39000      500   0.0071142047  0.00043240775     0.07941224    0.041355702       0.044772 
+   40000      500   0.0075607156  0.00029449209     0.07941224    0.042795151       0.044772 
+Loop time of 3.42073 on 2 procs for 30000 steps with 500 atoms, finish time Thu Jun 11 16:12:12 2026
+
+
+Pair  time (%) = 0.841271 (24.5933)
+Neigh time (%) = 0.0773195 (2.26032)
+Comm  time (%) = 0.0238755 (0.697965)
+Outpt time (%) = 0.09403 (2.74883)
+Other time (%) = 2.38424 (69.6996)
+
+Nlocal:    250 ave 496 max 4 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    0 ave 0 max 0 min
+Histogram: 2 0 0 0 0 0 0 0 0 0
+Neighs:    5217.5 ave 10431 max 4 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 10435
+Ave neighs/atom = 20.87
+Neighbor list builds = 591
+Dangerous builds = 0
+
