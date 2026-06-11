@@ -1,0 +1,135 @@
+# aor.in — Parameterized angle-of-repose lifted-cylinder heap test (Phase 3).
+#
+# Fill an open-ended mesh cylinder with wheat-scale spheres, settle, lift the
+# cylinder via fix move/mesh, relax to a heap, dump the final state. Every
+# calibration parameter enters as a -var; geometry and PSD are fixed inputs.
+#
+# Material: wheat grain (literature ground truth — experiments/ground-truth-wheat-literature.md).
+# Contact model: Phase-3 default from docs/liggghts-knobs.md.
+#
+# Run (from repo root):
+#   mpirun -np 2 lmp_auto -in templates/aor.in \
+#       -var TAG med -var FRIC 0.4 -var ROLLFRIC 0.05 -var REST 0.5 -log log.med
+#
+# Atom types: 1 = particles, 2 = walls (floor + side primitives + mesh cylinder).
+# This lets particle-wall friction differ from particle-particle (published wheat
+# sets do). property/global peratomtypepair takes the symmetric 2x2 matrix in
+# row order (1,1) (1,2) (2,1) (2,2); the (2,2) wall-wall entry is never exercised.
+
+# ---------------------------------------------------------------- variables
+variable FRIC       index 0.40          # mu_s particle-particle  [calibration target]
+variable FRICPW     index 0.40          # mu_s particle-wall      [calibration target]
+variable ROLLFRIC   index 0.05          # mu_r particle-particle, epsd2 [target]
+variable ROLLFRICPW index 0.05          # mu_r particle-wall, epsd2     [target]
+variable REST       index 0.50          # restitution             [target, weak]
+variable SEED       index 49979687      # insertion seed — the seed-to-seed noise lever (Phase 4 varies this)
+# (the three particletemplate seeds and the distribution seed are fixed distinct
+#  primes below; they seed constant-radius templates so have negligible effect —
+#  packing realization is driven by the insertion SEED. LIGGGHTS requires all
+#  five seeds across templates/distribution/insert to be distinct.)
+variable TAG        index dev           # output label
+variable LIFTV      index 0.010         # cylinder lift speed [m/s] — matches the published
+                                        # wheat lifted-cylinder protocol (Wang 2023). AoR is
+                                        # strongly lift-speed sensitive (Phase-3 finding: 18.4 deg
+                                        # @10 vs 12.3 deg @25 vs 10.4 deg @50 mm/s) — NOT quasi-static-
+                                        # invariant here, so we lock to the protocol speed.
+variable LIFTH      index 0.055         # cylinder lift distance [m] (<= 0.095)
+variable NPART      index 4000          # particles inserted
+variable MESH       index templates/meshes/cylinder_r0.040_h0.100.stl
+variable YMOD       index 1.0e7         # softened Young's modulus [Pa] (numerical device)
+variable DT         index 8.0e-6        # timestep [s] (paired with YMOD)
+
+# fixed (non-calibrated) material inputs
+variable POIS       equal 0.25          # Poisson ratio
+variable RHO        equal 1400          # particle density [kg/m3]
+
+# derived stage durations (settle 0.4 s, lift LIFTH/LIFTV, relax 0.4 s)
+variable settlesteps equal ceil(0.4/v_DT)
+variable liftsteps   equal ceil(v_LIFTH/(v_LIFTV*v_DT))
+variable relaxsteps  equal ceil(0.4/v_DT)
+variable dumpevery   equal 5000
+
+# ---------------------------------------------------------------- setup
+atom_style	granular
+atom_modify	map array
+boundary	m m m
+newton		off
+communicate	single vel yes
+units		si
+
+region		reg block -0.14 0.14 -0.14 0.14 0. 0.20 units box
+create_box	2 reg
+
+neighbor	0.002 bin
+neigh_modify	delay 0
+
+# ---------------------------------------------------------------- material / contact model
+# peratomtype: type1=particles, type2=walls (both get the softened E)
+fix 	m1 all property/global youngsModulus peratomtype ${YMOD} ${YMOD}
+fix 	m2 all property/global poissonsRatio peratomtype ${POIS} ${POIS}
+# peratomtypepair 2 -> 2x2 symmetric matrix: (1,1) (1,2) (2,1) (2,2)
+fix 	m3 all property/global coefficientRestitution peratomtypepair 2 ${REST} ${REST} ${REST} ${REST}
+fix 	m4 all property/global coefficientFriction peratomtypepair 2 ${FRIC} ${FRICPW} ${FRICPW} ${FRICPW}
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 ${ROLLFRIC} ${ROLLFRICPW} ${ROLLFRICPW} ${ROLLFRICPW}
+
+pair_style gran model hertz tangential history rolling_friction epsd2
+pair_coeff	* *
+
+timestep	${DT}
+
+fix		gravi all gravity 9.81 vector 0.0 0.0 -1.0
+
+# static base plate + safety side walls (all wall type 2)
+fix zfloor all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 zplane 0.0
+fix xw1 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 xplane -0.13
+fix xw2 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 xplane +0.13
+fix yw1 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 yplane -0.13
+fix yw2 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 yplane +0.13
+
+# liftable cylinder: generated STL imported as a mesh wall (type 2)
+fix cyl all mesh/surface file ${MESH} type 2
+fix cylwall all wall/gran model hertz tangential history rolling_friction epsd2 mesh n_meshes 1 meshes cyl
+
+# ---------------------------------------------------------------- particles (fixed PSD)
+# discrete distribution: d = 3.4 / 3.7 / 4.0 mm, mass weights 0.25 / 0.50 / 0.25
+fix	pts1 all particletemplate/sphere 15485863 atom_type 1 density constant ${RHO} radius constant 0.0017
+fix	pts2 all particletemplate/sphere 15485867 atom_type 1 density constant ${RHO} radius constant 0.00185
+fix	pts3 all particletemplate/sphere 32452843 atom_type 1 density constant ${RHO} radius constant 0.0020
+fix	pdd1 all particledistribution/discrete 32452867 3 pts1 0.25 pts2 0.50 pts3 0.25
+
+# insert just inside the mesh (r 0.0375 < mesh r 0.04)
+region	bc cylinder z 0. 0. 0.0375 0.003 0.085 units box
+fix	ins all insert/pack seed ${SEED} distributiontemplate pdd1 vel constant 0. 0. -0.3 &
+		insert_every once overlapcheck yes all_in yes particles_in_region ${NPART} region bc
+
+fix	integr all nve/sphere
+
+# timestep sanity (Phase-3 exit-criterion check)
+fix	ts all check/timestep/gran 2000 0.1 0.1
+
+# ---------------------------------------------------------------- output
+compute	rke all erotate/sphere
+thermo_style	custom step atoms ke c_rke f_ts[1] f_ts[2]
+thermo		2000
+thermo_modify	lost ignore norm no
+dump	dmp all custom ${dumpevery} post/${TAG}_*.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+dump	dmpstl all mesh/stl ${dumpevery} post/${TAG}_mesh_*.stl
+
+# ---------------------------------------------------------------- stages
+# stage 1 — insert and settle inside the cylinder
+run	${settlesteps}
+variable ke_settle equal ke
+print	"AUDIT settle: step ${settlesteps}  KE = ${ke_settle} J  (target < 2e-8 J for quasi-static)"
+
+# stage 2 — lift the cylinder at LIFTV
+fix	lift all move/mesh mesh cyl linear 0. 0. ${LIFTV}
+run	${liftsteps}
+
+# stage 3 — stop the lift, let the heap relax
+unfix	lift
+run	${relaxsteps}
+variable ke_relax equal ke
+print	"AUDIT relax: KE = ${ke_relax} J  (heap should be static)"
+
+# final state for measurement (Phase 4)
+write_dump all custom post/${TAG}_final.liggghts id type x y z vx vy vz omegax omegay omegaz radius

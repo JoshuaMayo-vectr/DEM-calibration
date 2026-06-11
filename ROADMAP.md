@@ -6,9 +6,9 @@
 |---:|---|:---:|
 | 0  | Toolchain foundations (LIGGGHTS build, OVITO, Python env, repo scaffold) | ✅ |
 | 1  | LIGGGHTS familiarization (tutorials, contact-model catalog, knobs & limits) | ✅ |
-| 2  | Physical ground truth (material, PSD, densities, measured angle of repose) | ⬜ |
-| ⚑  | **Checkpoint 1 — Stack viable & targets measurable** | ⬜ |
-| 3  | Parameterized angle-of-repose simulation template | ⬜ |
+| 2  | Physical ground truth (material, PSD, densities, measured angle of repose) | ✅ (literature substitute) |
+| ⚑  | **Checkpoint 1 — Stack viable & targets measurable** | ✅ (via literature substitute) |
+| 3  | Parameterized angle-of-repose simulation template | ✅ |
 | 4  | Automated measurement module (heap-angle fit, bulk density, noise floor) | ⬜ |
 | 5  | Visualization layer (OVITO interactive + headless snapshots + audit plots) | ⬜ |
 | ⚑  | **Checkpoint 2 — Simulation credible & objective trustworthy** | ⬜ |
@@ -145,7 +145,9 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 
 **Risks.** Repeat spread too large (sloppy protocol → uncalibratable target) — mitigate with a consistent lift speed and fill procedure. Material too cohesive for a clean heap — switch test geometry or accept the cohesion parameter dimension early.
 
-→ **Checkpoint 1**: Stack viable & targets measurable?
+**Status — literature substitute (2026-06-11).** No physical sample was available, so this phase is satisfied by a **sourced literature stand-in** rather than lab measurement. Material chosen: **wheat grain** (dry, cohesionless). The synthetic ground truth lives in [experiments/ground-truth-wheat-literature.md](experiments/ground-truth-wheat-literature.md): equivalent sphere d = 3.8 mm (distribution 3.4–4.0 mm), particle density 1400 kg/m³, poured bulk density ≈ 780 kg/m³, **AoR target 27° ± 1.5°** (lifted-cylinder method, method-bound). The σ = 1.5° is **assumed, not measured** — it is the calibration tolerance and downstream accuracy ceiling. Checkpoint 1's "measured targets with known spread" is therefore met with literature values and an assumed spread; if a sample becomes available this is the file Phase 2 replaces.
+
+→ **Checkpoint 1**: Stack viable & targets measurable? *(met via literature substitute — see above.)*
 
 ---
 
@@ -159,7 +161,15 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 
 **Risks.** Particle count vs. runtime tension — if the real PSD forces too many particles, apply documented particle upscaling (coarse-graining) and carry it as a stated assumption. Heap too small for a clean flank → widen the base plate, not the particle count.
 
-**Lessons learned.** _(placeholder)_
+**Lessons learned.** *(completed 2026-06-11 — template [templates/aor.in](templates/aor.in), runs + record in [results/phase3-aor/](results/phase3-aor/NOTES.md))*
+
+- **Exit criterion met.** Triplet (FRIC/μ_r = 0.2/0.0, 0.4/0.05, 0.6/0.15) gives crude angles ≈ 0° / 18.4° / 26.1° — visibly different, monotonically steepening. Each run 2.75–3.9 min (≤ 5 min budget); Rayleigh fraction 0.073 at the softened E (timestep check clean, 0 dangerous builds); 4000/4000 particles retained.
+- **Config locked:** cylinder R = 0.040 m / H = 0.100 m, 4000 spheres (~146 g), discrete PSD 3.4/3.7/4.0 mm, E = 1e7 Pa, dt = 8e-6 s, lift 10 mm/s. Two atom types (1 = particles, 2 = walls) so particle-wall friction can differ from particle-particle.
+- **Young's modulus** confirmed AoR-insensitive (E 1e7 vs 5e7: Δ 0.6°) — kept at 1e7 because it doubles the timestep.
+- **Lift speed is strongly rate-sensitive, NOT quasi-static** (18.4° @10 / 12.3° @25 / 10.4° @50 mm/s) — locked to the **10 mm/s published protocol** rather than a faster compromise, so the sim mirrors the physical test. This invalidated the plan's quasi-static assumption; the contingency (run at protocol speed) applied cleanly.
+- **Checkpoint-3 preview:** the 27° target is reachable but only near the **high-μ_r corner** of the ranges; at published friction it is ~18°. Single spheres under-predict AoR and μ_r must absorb shape resistance. **Phase 7 should expect a high-μ_r optimum and may need to widen the μ_r ceiling > 0.15** (or accept multisphere).
+- **Two gotchas for the Phase-6 runner:** (a) the `-var MESH` path **cannot contain spaces** — LIGGGHTS re-tokenizes it; pass a space-free relative path (repo root is `…/09 DEM-calibration`). (b) **All five RNG seeds must be distinct** (3 templates + distribution + insert) or LIGGGHTS aborts; only the insertion `SEED` is exposed as the noise lever.
+- **Cost datum for the optimizer budget:** ~6.9e-8 s/particle-step on 2 ranks (788k steps × 4000 particles ≈ 230 s at 10 mm/s).
 
 ---
 
@@ -277,13 +287,14 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 
 ## Open questions
 
-- **Material choice.** Grain? Soil? Fertilizer? Decides whether cohesion (SJKR) enters the model — the single biggest scope fork. Resolve before Phase 2.
-- **Measurement equipment.** What's actually available for the lifted-cylinder test (tube, lift rig, camera, scale)? Determines protocol fidelity and σ.
-- **Target tolerance.** How close is "matches physical reality" — within measurement spread, or a stated engineering tolerance (e.g. ±2°)? Needed before Checkpoint 4 is decidable.
-- **Second test: drawdown or rotating drum?** Drawdown is cheaper to build physically; the drum gives a richer dynamic response. Decide at Phase 9 start from Phase-2 experience.
+- ~~**Material choice.**~~ **Resolved (2026-06-11): wheat grain** — dry, cohesionless (no SJKR). See [experiments/ground-truth-wheat-literature.md](experiments/ground-truth-wheat-literature.md).
+- ~~**Measurement equipment.**~~ **Mooted (2026-06-11):** no physical sample available — Phase 2 satisfied by a literature substitute with an *assumed* σ = 1.5°. If a sample and rig appear later, the experiments doc is what real measurement replaces.
+- **Target tolerance.** How close is "matches physical reality" — within measurement spread, or a stated engineering tolerance (e.g. ±2°)? Needed before Checkpoint 4 is decidable. *With the literature substitute, the floor is the assumed σ = 1.5° — but since the target itself is synthetic, an engineering tolerance statement matters more, not less.*
+- **Second test: drawdown or rotating drum?** Drawdown is cheaper to build physically; the drum gives a richer dynamic response. Decide at Phase 9 start. *Note: with no physical sample, the second response must also come from literature — drum data for wheat is well published (e.g. Sugirbay 2022: 24.3° ± 1.2°), which may tip the choice toward the drum.*
 - **Single- vs multi-objective.** Weighted sum is simpler; NSGA-II shows the trade-off front. Lean weighted-sum until the front itself proves informative.
 - **Compute budget.** Calibration on this MacBook alone, or is a beefier box/cloud burst available for the LHS screen and optimizer runs? Changes Phase 6's parallelism design.
-- **Particle upscaling.** If the real PSD is too fine for 2–5 min runs, how much coarse-graining is acceptable? Defer until Phase 3 sizes the problem.
+- ~~**Particle upscaling.**~~ **Resolved (2026-06-11): not needed.** Wheat-scale spheres (3.4–4.0 mm, 4000 particles) run in 2.8–3.9 min un-coarsened — Phase 3 sized the problem and it fits the budget as-is.
+- **μ_r ceiling (new, from Phase 3).** The 27° target is only reached near the top of the rolling-friction range (26.1° at μ_r = 0.15); published wheat friction values give only ~18° with single spheres. Does Phase 7 widen the μ_r range above 0.15, or is multisphere the honest fix? Decide at Checkpoint 3.
 
 ## Repository layout
 
