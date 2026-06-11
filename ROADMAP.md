@@ -109,7 +109,7 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 
 **Risks.** The `ovito` pip package ships arm64 wheels only for recent Python versions — pin the venv Python to one with wheel coverage rather than building from source.
 
-**Lessons learned.** Build with `USE_VTK = "OFF"` (Homebrew VTK 9.x is incompatible with LIGGGHTS 3.8); point `BOOST_INC_USR` at `/opt/homebrew/include`; Apple clang 21 compiles the 2018 codebase with warnings only.
+**Lessons learned.** Build with `USE_VTK = "OFF"` (Homebrew VTK 9.x is incompatible with LIGGGHTS 3.8); point `BOOST_INC_USR` at `/opt/homebrew/include`; Apple clang 21 compiles the 2018 codebase with warnings only. The `ovito` pip package (3.15.4) ships cp310–cp314 macOS arm64 wheels, so the venv runs on Homebrew Python 3.13 with no source build — the wheel-coverage risk did not materialize.
 
 ---
 
