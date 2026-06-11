@@ -6,5 +6,8 @@ external/
 __pycache__/
 *.pyc
 
+# bulky simulation outputs (dumps); committed evidence is in.* scripts, NOTES.md, log.liggghts
+results/**/post/
+
 # macOS
 .DS_Store
