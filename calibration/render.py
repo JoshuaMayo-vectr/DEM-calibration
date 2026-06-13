@@ -190,14 +190,18 @@ def _find_final_dump(trial_dir: str | Path) -> Path:
 
 def render_trial(trial_dir: str | Path, *, tag: str | None = None,
                  radius_range: tuple[float, float] | None = None,
-                 settle_step: int = 50000) -> dict:
+                 settle_step: int = 50000,
+                 cyl_radius: float | None = None,
+                 fov: float | None = None,
+                 clump_volume_m3: float | None = None) -> dict:
     """The Phase-6 rendering hook: snapshot.png + profile_fit.png per trial.
 
     Finds the final dump, renders trial_dir/snapshot.png, runs the Phase-4
     measurement (bulk density too when the settled pre-lift dump exists) with
     the audit plot routed to trial_dir/profile_fit.png. Returns the measure
     dict extended with snapshot_path and tag. radius_range/settle_step follow
-    the material (custom PSD/DT move both; defaults = wheat).
+    the material (custom PSD/DT move both; defaults = wheat); cyl_radius/fov
+    follow a custom heap geometry (Phase 14; None = the locked default).
     """
     trial_dir = Path(trial_dir)
     final = _find_final_dump(trial_dir)
@@ -206,11 +210,15 @@ def render_trial(trial_dir: str | Path, *, tag: str | None = None,
     settled = trial_dir / "post" / f"{tag}_{settle_step}.liggghts"
 
     snapshot = render_snapshot(final, trial_dir / "snapshot.png", label=tag,
-                               radius_range=radius_range)
+                               radius_range=radius_range,
+                               fov=fov if fov is not None else ORTHO_FOV)
+    bulk_kw = {} if cyl_radius is None else {"cyl_radius": cyl_radius}
+    if clump_volume_m3 is not None:        # Phase 15 — multisphere body volume
+        bulk_kw["clump_volume_m3"] = clump_volume_m3
     result = measure.measure_heap(
         final,
         settled_dump=settled if settled.exists() else None,
-        plot_path=trial_dir / "profile_fit.png")
+        plot_path=trial_dir / "profile_fit.png", **bulk_kw)
     result["snapshot_path"] = str(snapshot)
     result["tag"] = tag
     return result

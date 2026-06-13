@@ -168,7 +168,9 @@ def write_dump(df: pd.DataFrame, path, *, timestep: int = 0):
 
     Emits the exact format calibration.measure.read_dump parses (and that
     OVITO auto-detects): the standard column set from templates/aor.in, with
-    zero velocities/omegas, type 1, ids 1..n. Returns the path.
+    zero velocities/omegas, type 1, ids 1..n. A 'mol' column (Phase-15
+    multisphere body id) is emitted right after 'type' when present in df,
+    mirroring the template's conditional dump line. Returns the path.
     """
     from pathlib import Path
 
@@ -176,18 +178,100 @@ def write_dump(df: pd.DataFrame, path, *, timestep: int = 0):
     path.parent.mkdir(parents=True, exist_ok=True)
     n = len(df)
     pad = 0.01
+    has_mol = "mol" in df.columns
     with open(path, "w") as fh:
         fh.write("ITEM: TIMESTEP\n%d\n" % timestep)
         fh.write("ITEM: NUMBER OF ATOMS\n%d\n" % n)
         fh.write("ITEM: BOX BOUNDS mm mm mm\n")
         for c in ("x", "y", "z"):
             fh.write("%g %g\n" % (df[c].min() - pad, df[c].max() + pad))
-        fh.write("ITEM: ATOMS id type x y z vx vy vz "
-                 "omegax omegay omegaz radius\n")
+        fh.write("ITEM: ATOMS id type %sx y z vx vy vz "
+                 "omegax omegay omegaz radius\n" % ("mol " if has_mol else ""))
         for i, row in enumerate(df.itertuples(index=False), start=1):
-            fh.write("%d 1 %.8g %.8g %.8g 0 0 0 0 0 0 %.8g\n"
-                     % (i, row.x, row.y, row.z, row.radius))
+            molstr = ("%d " % int(getattr(row, "mol"))) if has_mol else ""
+            fh.write("%d 1 %s%.8g %.8g %.8g 0 0 0 0 0 0 %.8g\n"
+                     % (i, molstr, row.x, row.y, row.z, row.radius))
     return path
+
+
+# ----------------------------------------------------- Phase 15 multisphere
+# A prolate 3-sphere wheat clump (body axis = local z): fat center + two
+# overlapping end caps, aspect ~2.2 — the Phase-15 representative clump.
+WHEAT_CLUMP = [[0.0, 0.0, -0.0026, 0.00175],
+               [0.0, 0.0,  0.0000, 0.00200],
+               [0.0, 0.0,  0.0026, 0.00175]]
+
+
+def _random_rotations(n: int, rng: np.random.Generator) -> np.ndarray:
+    """n uniformly-random 3×3 rotation matrices (QR of Gaussian matrices, with
+    the sign fix so they are proper rotations)."""
+    a = rng.standard_normal((n, 3, 3))
+    rots = np.empty_like(a)
+    for i in range(n):
+        q, r = np.linalg.qr(a[i])
+        rots[i] = q * np.sign(np.diag(r))
+    return rots
+
+
+def _expand_clumps(cx, cy, cz, clump, rng, *, orient: bool = True) -> pd.DataFrame:
+    """Replace each body center (cx,cy,cz) with the clump's sub-spheres, one
+    `mol` id per body. orient=True gives each clump a random isotropic
+    orientation (a Minkowski dilation of the center cloud — slope-preserving,
+    so the heap flank angle is unchanged)."""
+    spheres = np.asarray(clump, dtype=float)
+    pos, rad = spheres[:, :3], spheres[:, 3]
+    nb, k = len(cx), len(spheres)
+    cx, cy, cz = np.asarray(cx), np.asarray(cy), np.asarray(cz)
+    rots = _random_rotations(nb, rng) if orient else None
+    xs = np.empty(nb * k); ys = np.empty(nb * k); zs = np.empty(nb * k)
+    rs = np.empty(nb * k); mol = np.empty(nb * k, dtype=int)
+    for i in range(nb):
+        p = pos @ rots[i].T if orient else pos
+        sl = slice(i * k, (i + 1) * k)
+        xs[sl], ys[sl], zs[sl] = cx[i] + p[:, 0], cy[i] + p[:, 1], cz[i] + p[:, 2]
+        rs[sl], mol[sl] = rad, i + 1
+    return pd.DataFrame({"x": xs, "y": ys, "z": zs, "radius": rs, "mol": mol})
+
+
+def make_multisphere_cone(
+    angle_deg: float,
+    rng: np.random.Generator,
+    n_bodies: int = 1500,
+    r_base: float | None = None,
+    clump=None,
+    orient: bool = True,
+) -> pd.DataFrame:
+    """Cone of multisphere CLUMPS: body centers form a cone of slope angle_deg
+    (volume-matched like make_cone), each expanded into a clump with a shared
+    `mol` id. Verifies the measurement reads the heap angle from the sub-sphere
+    top cloud — no grouping needed for the angle (the surface IS sub-sphere tops)."""
+    clump = WHEAT_CLUMP if clump is None else clump
+    r_equiv = float((3 * np.mean([r**3 for *_, r in clump])) ** (1 / 3))
+    centers = make_cone(angle_deg, rng, n=n_bodies, r_base=r_base,
+                        particle_r=r_equiv, jitter=0.3)
+    return _expand_clumps(centers["x"], centers["y"], centers["z"],
+                          clump, rng, orient=orient)
+
+
+def make_packed_multisphere_cylinder(
+    packing_frac: float,
+    rng: np.random.Generator,
+    clump_volume: float,
+    cyl_r: float = 0.040,
+    h: float = 0.040,
+    clump=None,
+    orient: bool = True,
+) -> pd.DataFrame:
+    """Random clumps in a cylinder with body count set so the overlap-corrected
+    solid fraction (n_bodies·clump_volume / cyl_volume) equals packing_frac.
+    measure_bulk_density(clump_volume_m3=clump_volume) must read packing_frac·ρ;
+    the naive sub-sphere-sum path over-reads (it double-counts intra-clump overlap)."""
+    clump = WHEAT_CLUMP if clump is None else clump
+    n_bodies = int(round(packing_frac * np.pi * cyl_r**2 * h / clump_volume))
+    r = cyl_r * np.sqrt(rng.uniform(0, 1, n_bodies))
+    th = rng.uniform(0, 2 * np.pi, n_bodies)
+    cz = rng.uniform(0, h, n_bodies)
+    return _expand_clumps(r * np.cos(th), r * np.sin(th), cz, clump, rng, orient=orient)
 
 
 def _chord_offset_for_fill(fill_frac: float, drum_r: float) -> float:

@@ -32,7 +32,28 @@
       "properties": {
         "pair_style": {"type": "string"},
         "cohesion": {"type": "string"},
-        "particle_shape": {"type": "string"}
+        "particle_shape": {"type": "string"},
+        "clump": {
+          "type": "object",
+          "description": "Phase 15: the multisphere clump geometry, present when particle_shape is 'multisphere'. spheres are [x, y, z, r] sub-spheres in clump coordinates (m); equiv_radius_m / aspect_ratio are runner-recorded provenance from the LIGGGHTS Monte-Carlo integration.",
+          "additionalProperties": false,
+          "required": ["nspheres", "spheres"],
+          "properties": {
+            "nspheres": {"type": "integer", "minimum": 2},
+            "spheres": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 4,
+                "maxItems": 4
+              }
+            },
+            "equiv_radius_m": {"type": "number"},
+            "aspect_ratio": {"type": "number"}
+          }
+        }
       }
     },
     "parameters": {
@@ -42,7 +63,9 @@
       "properties": {
         "fric": {"$ref": "#/$defs/parameter"},
         "rollfric": {"$ref": "#/$defs/parameter"},
-        "rest": {"$ref": "#/$defs/parameter"}
+        "rest": {"$ref": "#/$defs/parameter"},
+        "cohed": {"$ref": "#/$defs/parameter"},
+        "rollvisc": {"$ref": "#/$defs/parameter"}
       }
     },
     "equivalence_family": {
@@ -87,6 +110,15 @@
         "youngs_modulus_note": {"type": "string"},
         "poisson_ratio": {"type": "number"},
         "timestep_s": {"type": "number"},
+        "heap_geometry": {
+          "type": "object",
+          "description": "Phase 14: the heap-test rig dimensions when not the locked default (R 0.040 / H 0.100 m).",
+          "required": ["cyl_radius_m", "cyl_height_m"],
+          "properties": {
+            "cyl_radius_m": {"type": "number"},
+            "cyl_height_m": {"type": "number"}
+          }
+        },
         "wall_acrylic": {
           "type": "object",
           "required": ["fric", "rollfric", "source"],

@@ -173,6 +173,26 @@ def test_params_from_trial_searches_wall_friction_when_configured(study_to_tmp):
     assert set(captured) == {"fric", "rollfric", "rest", "fricpw", "rollfricpw"}
 
 
+def test_params_from_trial_searches_cohesion_when_configured(study_to_tmp):
+    # Phase 13: a config naming cohed in search_bounds gets it suggested as a free dim
+    import dataclasses
+    cfg = dataclasses.replace(
+        optimize.default_config(),
+        search_bounds={**optimize.default_config().search_bounds,
+                       "cohed": (1000.0, 30000.0)})
+    study = optuna.create_study(direction="minimize")
+    captured = {}
+
+    def obj(trial):
+        p = optimize.params_from_trial(trial, cfg)
+        captured.update(p)
+        return optimize.aor_loss(_synthetic_aor(p))
+
+    study.optimize(obj, n_trials=3)
+    assert set(captured) == {"fric", "rollfric", "rest", "cohed"}
+    assert 1000.0 <= captured["cohed"] <= 30000.0
+
+
 def test_make_objective_records_user_attrs(stub_eval, study_to_tmp):
     study = optimize.build_study(sampler="tpe")
     study.optimize(optimize.make_objective(), n_trials=1)
@@ -428,6 +448,42 @@ def test_config_roundtrip_with_wall_friction_bounds(study_to_tmp):
                                           "fricpw", "rollfricpw"]
 
 
+_COHESIVE_MAT = {"name": "wet-maize", "particle_density_kgm3": 1250.0,
+                 "psd_mm": [[6.0, 0.3], [7.0, 0.5], [8.0, 0.2]],
+                 "youngs_modulus_pa": 1.0e7, "timestep_s": None,
+                 "n_particles": 1200, "cohesion": "sjkr"}
+
+
+def test_load_config_rejects_cohesion_without_cohesive_material(study_to_tmp):
+    # Phase 13: cohed is meaningless without SJKR active (material.cohesion='sjkr')
+    import dataclasses
+    cfg = dataclasses.replace(
+        optimize.default_config(),                       # material None -> cohesionless
+        search_bounds={**optimize.default_config().search_bounds,
+                       "cohed": (1000.0, 30000.0)})
+    base = study_to_tmp / "c" / "config.json"
+    optimize.save_config(cfg, base)
+    with pytest.raises(ValueError):
+        optimize.load_config(base)
+
+
+def test_config_roundtrip_with_cohesion_and_cohesive_material(study_to_tmp):
+    import dataclasses
+    cfg = dataclasses.replace(
+        optimize.default_config(), material=_COHESIVE_MAT,
+        search_bounds={**optimize.default_config().search_bounds,
+                       "cohed": (1000.0, 30000.0)})
+    p1 = optimize.save_config(cfg, study_to_tmp / "cc" / "config.json")
+    loaded = optimize.load_config(p1)
+    assert loaded.search_bounds["cohed"] == (1000.0, 30000.0)
+    assert loaded.material["cohesion"] == "sjkr"
+    # fixed point
+    again = optimize.load_config(optimize.save_config(
+        loaded, study_to_tmp / "cc2" / "config.json"))
+    assert again.material == loaded.material
+    assert again.search_bounds == loaded.search_bounds
+
+
 def test_objective_with_custom_cfg(study_to_tmp):
     import dataclasses
 
@@ -560,8 +616,10 @@ def test_config_v2_material_roundtrip(study_to_tmp):
                               material=material)
     path = optimize.save_config(cfg, study_to_tmp / "m" / "config.json")
     raw = __import__("json").loads(path.read_text())
-    assert raw["schema_version"] == 2
+    assert raw["schema_version"] == 4                         # Phase 15 bumped 3 -> 4
     assert raw["material"]["name"] == "maize"
+    assert "geometry" not in raw                              # default geometry omitted
+    assert "particle_shape" not in raw["material"]            # default shape omitted
 
     loaded = optimize.load_config(path)
     assert loaded.material["psd_mm"] == material["psd_mm"]
@@ -589,6 +647,83 @@ def test_config_v1_and_default_material_stay_default(study_to_tmp):
     raw["material"] = dict(runner.WHEAT_MATERIAL)              # explicit wheat
     path.write_text(_json.dumps(raw))
     assert optimize.load_config(path).material is None
+
+
+def test_config_v3_contact_model_and_geometry_roundtrip(study_to_tmp):
+    """Phase-14: an epsd rolling model + a non-default cylinder survive
+    save -> load to a fixed point, write the schema with a geometry block, and
+    activate the rollvisc search dimension."""
+    import dataclasses
+
+    material = {**dict(runner.WHEAT_MATERIAL), "name": "wheat-epsd-big",
+                "rolling_model": "epsd", "cyl_radius_m": 0.050, "cyl_height_m": 0.120}
+    cfg = dataclasses.replace(
+        optimize.default_config(), outdir=study_to_tmp / "g", seed_csv=None,
+        material=material,
+        search_bounds={"fric": (0.2, 0.8), "rollfric": (0.05, 0.25),
+                       "rest": (0.3, 0.7), "rollvisc": (0.0, 0.5)})
+    path = optimize.save_config(cfg, study_to_tmp / "g" / "config.json")
+    raw = __import__("json").loads(path.read_text())
+    assert raw["schema_version"] == 4
+    assert raw["material"]["rolling_model"] == "epsd"
+    assert raw["geometry"] == {"cyl_radius_m": 0.050, "cyl_height_m": 0.120}
+
+    loaded = optimize.load_config(path)
+    assert loaded.material["rolling_model"] == "epsd"
+    assert loaded.material["cyl_radius_m"] == 0.050
+    assert "rollvisc" in loaded.search_bounds
+    again = optimize.load_config(optimize.save_config(
+        loaded, study_to_tmp / "g" / "config2.json"))
+    assert again.material == loaded.material                  # fixed point
+
+
+def test_config_v4_multisphere_roundtrip(study_to_tmp):
+    """Phase-15: a multisphere clump survives save -> load to a fixed point,
+    writes a v4 schema with particle_shape + clump_spheres in the material block,
+    and gets its own cache namespace (≠ the single-sphere wheat hash)."""
+    import dataclasses
+
+    clump = [[0.0, 0.0, -0.0026, 0.00175], [0.0, 0.0, 0.0, 0.00200],
+             [0.0, 0.0, 0.0026, 0.00175]]
+    material = {**dict(runner.WHEAT_MATERIAL), "name": "wheat-prolate",
+                "particle_shape": "multisphere", "clump_spheres": clump}
+    cfg = dataclasses.replace(optimize.default_config(),
+                              outdir=study_to_tmp / "ms", seed_csv=None,
+                              material=material)
+    path = optimize.save_config(cfg, study_to_tmp / "ms" / "config.json")
+    raw = __import__("json").loads(path.read_text())
+    assert raw["schema_version"] == 4
+    assert raw["material"]["particle_shape"] == "multisphere"
+    assert len(raw["material"]["clump_spheres"]) == 3
+
+    loaded = optimize.load_config(path)
+    assert loaded.material["particle_shape"] == "multisphere"
+    again = optimize.load_config(optimize.save_config(
+        loaded, study_to_tmp / "ms" / "config2.json"))
+    assert again.material == loaded.material                  # fixed point
+    # own namespace: a multisphere study cannot collide with the wheat baseline
+    assert runner.params_hash({"fric": 0.5, "rollfric": 0.12}, "aor",
+                              loaded.material) != "a3338ce730"
+
+
+def test_config_rejects_rollvisc_without_epsd(study_to_tmp):
+    """rollvisc is meaningless unless the rolling model is epsd/epsd3."""
+    import dataclasses
+    import json as _json
+
+    cfg = dataclasses.replace(
+        optimize.default_config(), outdir=study_to_tmp / "rv", seed_csv=None,
+        search_bounds={"fric": (0.2, 0.8), "rollfric": (0.05, 0.25),
+                       "rest": (0.3, 0.7), "rollvisc": (0.0, 0.5)})
+    path = optimize.save_config(cfg, study_to_tmp / "rv" / "config.json")
+    # default material is epsd2 -> must reject
+    with pytest.raises(ValueError, match="rollvisc"):
+        optimize.load_config(path)
+    # flip the material to epsd -> now accepted
+    raw = _json.loads(path.read_text())
+    raw["material"] = {**dict(runner.WHEAT_MATERIAL), "rolling_model": "epsd"}
+    path.write_text(_json.dumps(raw))
+    assert "rollvisc" in optimize.load_config(path).search_bounds
 
 
 def test_config_rejects_bad_material(study_to_tmp):

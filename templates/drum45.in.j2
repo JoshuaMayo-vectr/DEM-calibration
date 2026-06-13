@@ -49,6 +49,15 @@ variable FRICPW     index 0.36          # mu_s particle-shell [FIXED protocol in
 variable ROLLFRIC   index 0.12          # mu_r particle-particle, epsd2 [under test]
 variable ROLLFRICPW index 0.29          # mu_r particle-shell [FIXED: wheat-acrylic, ditto]
 variable REST       index 0.50          # restitution             [under test, weak]
+{% if cohesive %}
+variable COHED      index 0.0           # SJKR cohesionEnergyDensity [J/m3] [target]
+{% endif %}
+{% if needs_rollvisc %}
+variable ROLLVISC   index 0.1           # coefficientRollingViscousDamping (epsd/epsd3) [target]
+{% endif %}
+{% if normal_model == 'hooke' %}
+variable CHARVEL    index 2.0           # characteristicVelocity [m/s] (hooke only — numerical)
+{% endif %}
 variable CAPFRIC    index 0.36          # mu_s particle-cover, CO-ROTATING cap mesh [FIXED:
                                         # wheat-acrylic — acrylic drum: covers = shell]
 variable CAPROLL    index 0.29          # mu_r particle-cover [wheat-acrylic, ditto]
@@ -137,8 +146,30 @@ fix 	m5 all property/global coefficientRollingFriction peratomtypepair 3 &
 		${ROLLFRIC} ${ROLLFRICPW} ${CAPROLL} &
 		${ROLLFRICPW} ${ROLLFRICPW} ${ROLLFRICPW} &
 		${CAPROLL} ${ROLLFRICPW} ${ROLLFRICPW}
+{% if cohesive %}
+# SJKR cohesion (Phase 13): particle-particle (1,1) only; zero against the
+# drum shell (type 2) and co-rotating covers (type 3).
+fix 	m6 all property/global cohesionEnergyDensity peratomtypepair 3 &
+		${COHED} 0.0 0.0 &
+		0.0 0.0 0.0 &
+		0.0 0.0 0.0
+{% endif %}
+{% if needs_rollvisc %}
+# epsd/epsd3 rolling-friction variant (Phase 14): viscous rolling-damping torque
+# (epsd2/cdt disable it). The 45° hold-out is pinned epsd2, so this never emits —
+# kept for template uniformity with aor/drum.
+fix 	m7 all property/global coefficientRollingViscousDamping peratomtypepair 3 &
+		${ROLLVISC} 0.0 0.0 &
+		0.0 0.0 0.0 &
+		0.0 0.0 0.0
+{% endif %}
+{% if normal_model == 'hooke' %}
+# hooke normal model (Phase 14): characteristic velocity for the linear spring.
+# The 45° hold-out is pinned hertz, so this never emits.
+fix 	mcv all property/global characteristicVelocity scalar ${CHARVEL}
+{% endif %}
 
-pair_style gran model hertz tangential history rolling_friction epsd2
+pair_style gran model {{ normal_model }} tangential history{{ cohstr }} rolling_friction {{ rolling_model }}
 pair_coeff	* *
 
 timestep	${DT}
@@ -147,14 +178,14 @@ fix		gravi all gravity 9.81 vector 0.0 ${gy} ${gz}
 
 # containment backstop: frictionless-in-effect primitive y-planes parked
 # outside the cover disks (type 3 pair would apply, but they are unreachable)
-fix ycap1 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 3 yplane -${CAPY}
-fix ycap2 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 3 yplane +${CAPY}
+fix ycap1 all wall/gran model {{ normal_model }} tangential history{{ cohstr }} rolling_friction {{ rolling_model }} primitive type 3 yplane -${CAPY}
+fix ycap2 all wall/gran model {{ normal_model }} tangential history{{ cohstr }} rolling_friction {{ rolling_model }} primitive type 3 yplane +${CAPY}
 
 # drum shell (type 2, FRICPW) + co-rotating end covers (type 3, CAPFRIC):
 # two meshes, one wall fix, both rotated in stage 2
 fix drum all mesh/surface file ${MESH} type 2
 fix caps all mesh/surface file ${CMESH} type 3
-fix drumwall all wall/gran model hertz tangential history rolling_friction epsd2 mesh n_meshes 2 meshes drum caps
+fix drumwall all wall/gran model {{ normal_model }} tangential history{{ cohstr }} rolling_friction {{ rolling_model }} mesh n_meshes 2 meshes drum caps
 
 # ---------------------------------------------------------------- particles (fixed PSD)
 # discrete distribution: d = 3.4 / 3.7 / 4.0 mm, mass weights 0.25 / 0.50 / 0.25

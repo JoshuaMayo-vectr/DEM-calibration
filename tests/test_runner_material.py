@@ -23,6 +23,7 @@ PARAMS = {"fric": 0.5, "rollfric": 0.12}
 MAIZE = {"name": "maize", "particle_density_kgm3": 1250.0,
          "psd_mm": [[6.0, 0.3], [7.0, 0.5], [8.0, 0.2]],
          "youngs_modulus_pa": 1.0e7, "timestep_s": None, "n_particles": 1200}
+COHESIVE = {**MAIZE, "name": "wet-maize", "cohesion": "sjkr"}
 
 
 # ------------------------------------------------------------- canonicalization
@@ -48,6 +49,52 @@ def test_material_canon_normalizes():
 def test_material_canon_accepts_its_own_output():
     mat = runner.material_canon(MAIZE)
     assert runner.material_canon(mat) == mat                      # idempotent
+
+
+# ------------------------------------------------------------- cohesion (Phase 13)
+def test_material_canon_cohesion_default_and_idempotent():
+    assert runner.material_canon(MAIZE)["cohesion"] == "none"     # absent -> none
+    mat = runner.material_canon(COHESIVE)
+    assert mat["cohesion"] == "sjkr"
+    assert runner.material_canon(mat) == mat                      # idempotent
+
+
+def test_material_canon_rejects_bad_cohesion():
+    with pytest.raises(ValueError):
+        runner.material_canon({**MAIZE, "cohesion": "bogus"})
+
+
+def test_cohesion_field_does_not_break_default_neutrality():
+    # spelling cohesion="none" on the wheat default is still the default (hash None)
+    assert runner.material_canon({**runner.WHEAT_MATERIAL, "cohesion": "none"}) is None
+    assert runner.params_hash(
+        PARAMS, "aor", {**runner.WHEAT_MATERIAL, "cohesion": "none"}) == "a3338ce730"
+
+
+def test_cohesive_material_distinct_namespace():
+    # cohesive vs cohesionless SAME PSD/density -> different physics -> different hash
+    assert runner.params_hash(PARAMS, "aor", MAIZE) != \
+        runner.params_hash(PARAMS, "aor", COHESIVE)
+
+
+def test_cohesive_render_activates_sjkr():
+    text = runner._render_text("aor", runner.material_canon(COHESIVE))
+    # the cohesion suffix lands on pair_style + every wall fix (5 primitives + 1 mesh)
+    assert text.count("cohesion sjkr") == 7
+    assert "cohesionEnergyDensity peratomtypepair 2 ${COHED}" in text
+    assert "variable COHED" in text
+
+
+def test_cohesionless_custom_render_has_no_sjkr():
+    text = runner._render_text("aor", runner.material_canon(MAIZE))
+    assert "cohesion sjkr" not in text
+    assert "cohesionEnergyDensity" not in text
+
+
+def test_drum45_never_renders_sjkr_even_for_cohesive_material():
+    # the hold-out stays cohesionless regardless of the material's cohesion flag
+    text = runner._render_text("drum45", runner.material_canon(COHESIVE))
+    assert "cohesion sjkr" not in text and "cohesionEnergyDensity" not in text
 
 
 @pytest.mark.parametrize("bad", [
@@ -173,7 +220,7 @@ def test_simulate_renders_template_for_custom_material(tmp_path, monkeypatch):
     seen = {}
 
     def fake_launch(canon, seed, trial, tag, response="aor", *,
-                    template=None, wall_limit=None):
+                    template=None, mat=None, wall_limit=None):
         seen.update(template=template, wall_limit=wall_limit, trial=trial)
 
     monkeypatch.setattr(runner, "_launch_sim", fake_launch)

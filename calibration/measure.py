@@ -347,6 +347,7 @@ def measure_bulk_density(
     cyl_radius: float = CYL_RADIUS,
     particle_density: float = PARTICLE_DENSITY,
     speed_max: float = 0.05,
+    clump_volume_m3: float | None = None,
 ) -> dict:
     """Bulk density of the settled-in-cylinder packing (pre-lift frame).
 
@@ -354,6 +355,13 @@ def measure_bulk_density(
     diameter), which excludes the loose free surface and the floor-ordered
     layer; centers-in-slab counting cancels sphere-crossing edge effects to
     first order. Cross-check: total mass over total filled volume.
+
+    Phase 15 — multisphere: when clump_volume_m3 is given AND the dump carries a
+    'mol' (body-id) column, count rigid bodies, not sub-spheres. Each body's mass
+    is the overlap-corrected ρ·V_clump (summing sub-sphere sphere volumes would
+    double-count the intra-clump overlap and bias ρ high); its z is the r³-weighted
+    sub-sphere centroid. The free surface (h_fill) is still the sub-sphere tops.
+    Any single-sphere call (no clump_volume_m3 / no 'mol') runs the path verbatim.
     """
     warnings: list[str] = []
     df = _static_particles(df, speed_max)
@@ -366,13 +374,21 @@ def measure_bulk_density(
     d = _median_diameter(df)
     tops = df["z"] + df["radius"]
     h_fill = float(tops.quantile(0.99))
-    mass = particle_density * (4 / 3) * np.pi * df["radius"] ** 3
     area = np.pi * cyl_radius**2
+
+    if clump_volume_m3 is not None and "mol" in df.columns:
+        w = df["radius"] ** 3
+        z = (df["z"] * w).groupby(df["mol"], sort=False).sum() \
+            / w.groupby(df["mol"], sort=False).sum()    # per-body r³-weighted z
+        mass = pd.Series(particle_density * clump_volume_m3, index=z.index)
+    else:
+        z = df["z"]
+        mass = particle_density * (4 / 3) * np.pi * df["radius"] ** 3
 
     z_lo, z_hi = 2 * d, h_fill - 2 * d
     rho_slab = None
     if z_hi - z_lo >= d:
-        in_slab = (df["z"] >= z_lo) & (df["z"] <= z_hi)
+        in_slab = (z >= z_lo) & (z <= z_hi)
         rho_slab = float(mass[in_slab].sum() / (area * (z_hi - z_lo)))
     else:
         warnings.append("bed too shallow for interior slab; using total only")
@@ -875,11 +891,17 @@ def measure_heap(
     final_dump: str | Path,
     settled_dump: str | Path | None = None,
     plot_path: str | Path | None = None,
+    cyl_radius: float | None = None,
+    clump_volume_m3: float | None = None,
     **kw,
 ) -> dict:
     """Measure one trial: angle of repose (+ audit plot, always) and, if the
     settled pre-lift dump is given, bulk density. This is the function the
-    Phase-6 runner calls. Returns a flat JSON-serializable dict.
+    Phase-6 runner calls. Returns a flat JSON-serializable dict. cyl_radius
+    follows a custom heap geometry (Phase 14; None = the locked 0.040 m default)
+    and only affects the bulk-density slab — the angle fit is geometry-agnostic.
+    clump_volume_m3 (Phase 15) is the multisphere body volume for bulk density;
+    None = single spheres. The angle fit reads sub-sphere tops directly, unchanged.
     """
     final_dump = Path(final_dump)
     df = read_dump(final_dump)
@@ -906,7 +928,10 @@ def measure_heap(
         "plot_path": str(plot_path),
     }
     if settled_dump is not None:
-        dens = measure_bulk_density(read_dump(settled_dump))
+        dens_kw = {} if cyl_radius is None else {"cyl_radius": cyl_radius}
+        if clump_volume_m3 is not None:
+            dens_kw["clump_volume_m3"] = clump_volume_m3
+        dens = measure_bulk_density(read_dump(settled_dump), **dens_kw)
         result["bulk_density_kgm3"] = dens["bulk_density_kgm3"]
         result["bulk_density_total_kgm3"] = dens["bulk_density_total_kgm3"]
         result["fill_height_m"] = dens["fill_height_m"]

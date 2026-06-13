@@ -56,6 +56,87 @@ def test_cone_angle_sweep():
     assert errs.max() <= 1.0
 
 
+@pytest.mark.parametrize("true_angle", [18.0, 27.0])
+def test_cone_angle_on_nondefault_geometry(true_angle):
+    """Phase-14 exit criterion: the angle fit still measures within ±0.5° on a
+    heap sized to a NON-default (larger) cylinder rig. The fit is geometry-
+    agnostic (data-driven center + median-diameter bins), so a wider base must
+    not bias it — this is what lets cyl_radius become per-study."""
+    errs = []
+    for seed in range(60, 70):
+        # ~R 0.060 m rig: a markedly wider heap than the locked R 0.040 base
+        df = synth.make_cone(true_angle, np.random.default_rng(seed),
+                             n=8000, r_base=0.090)
+        errs.append(_angle(df) - true_angle)
+    errs = np.abs(errs)
+    assert errs.mean() <= 0.35
+    assert errs.max() <= 0.5
+
+
+def test_bulk_density_honors_custom_cyl_radius():
+    """measure_bulk_density(cyl_radius=…) follows the rig: a packing built in a
+    wider cylinder is read correctly only when the slab radius matches it."""
+    rng = np.random.default_rng(7)
+    df = synth.make_packed_cylinder(0.56, rng, cyl_r=0.060)
+    dens = measure_bulk_density(df, cyl_radius=0.060, particle_density=1400.0)
+    expected = 0.56 * 1400.0
+    assert abs(dens["bulk_density_kgm3"] - expected) / expected <= 0.05
+
+
+# ----------------------------------------------------- Phase 15 multisphere
+
+@pytest.mark.parametrize("true_angle", [18.0, 27.0])
+def test_multisphere_cone_angle(true_angle):
+    """Phase-15 exit criterion: the angle fit reads a multisphere heap within the
+    SAME ±0.5° bound as single spheres — straight from the sub-sphere top cloud,
+    no body grouping. Clumps are randomly oriented (a slope-preserving Minkowski
+    dilation of the body-center cone), so the flank angle is unchanged."""
+    errs = []
+    for seed in range(60, 70):
+        df = synth.make_multisphere_cone(true_angle, np.random.default_rng(seed),
+                                         n_bodies=2500)
+        assert "mol" in df.columns                     # one body id per clump
+        errs.append(_angle(df) - true_angle)
+    errs = np.abs(errs)
+    assert errs.mean() <= 0.35
+    assert errs.max() <= 0.5
+
+
+def test_multisphere_bulk_density_corrects_overlap():
+    """Bulk density on a multisphere packing must weigh each rigid body by the
+    overlap-corrected clump volume (ρ·V_clump), reading the true packing within
+    ±5%. The naive single-sphere path (no clump_volume_m3) over-reads on the same
+    dump because it double-counts the intra-clump sphere overlap — documenting the
+    bug the Phase-15 fix closes (cf. the toe-free fit vs the crude baseline)."""
+    import sys
+    sys.path.insert(0, str(REPO))
+    from calibration import runner
+    V = runner._clump_equiv_volume(synth.WHEAT_CLUMP)
+    rng = np.random.default_rng(7)
+    df = synth.make_packed_multisphere_cylinder(0.40, rng, clump_volume=V,
+                                                cyl_r=0.060, h=0.040)
+    expected = 0.40 * 1400.0
+    corr = measure_bulk_density(df, cyl_radius=0.060, particle_density=1400.0,
+                                clump_volume_m3=V)
+    assert abs(corr["bulk_density_kgm3"] - expected) / expected <= 0.05
+    naive = measure_bulk_density(df, cyl_radius=0.060, particle_density=1400.0)
+    assert naive["bulk_density_kgm3"] > corr["bulk_density_kgm3"] * 1.05
+
+
+def test_multisphere_dump_roundtrip_has_mol():
+    """The synthetic multisphere dump carries the `mol` body-id column that the
+    template emits and read_dump surfaces (the grouping key for bulk density)."""
+    rng = np.random.default_rng(3)
+    df = synth.make_multisphere_cone(25.0, rng, n_bodies=500)
+    path = synth.write_dump(df, REPO / "results" / "_tmp_ms.liggghts")
+    try:
+        back = read_dump(path)
+        assert "mol" in back.columns
+        assert back["mol"].nunique() == df["mol"].nunique()
+    finally:
+        path.unlink(missing_ok=True)
+
+
 def test_truncated_cone():
     """Plateaued heaps (apex sliced at 70% height) must measure like full
     cones — the window top tracks the plateau, the bottom the true apex."""

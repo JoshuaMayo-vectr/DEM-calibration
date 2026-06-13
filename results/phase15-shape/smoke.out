@@ -1,0 +1,16 @@
+clump union V = 7.1389e-08 m3   namespace hash = 70190ea252   (wheat baseline a3338ce730)
+elapsed 404s
+{
+  "aor_deg": 37.320440345733054,
+  "bulk_density_kgm3": 733.907569991075,
+  "bulk_density_total_kgm3": 647.9864710256563,
+  "n_atoms": 3750,
+  "fit_r2": 0.9538398110750295,
+  "method": "height_window+shell",
+  "failed": null,
+  "error": null,
+  "warnings": [
+    "slab (734) vs total (648) densities disagree > 12%"
+  ]
+}
+trial_dir: /Users/joshuamayo/Dev/09 DEM-calibration/results/cache/70190ea252/seed49979687

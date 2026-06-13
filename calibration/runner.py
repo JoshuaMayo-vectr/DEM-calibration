@@ -170,7 +170,17 @@ SEEDS = [49979687, 67867967, 86028121, 104395301, 122949823]
 # mirrored (the default) it is in-range by construction; when searched
 # independently the optimizer needs the same physical envelope.
 RANGES = {"fric": (0.1, 1.0), "rollfric": (0.0, 0.5), "rest": (0.1, 0.9),
-          "fricpw": (0.1, 1.0), "rollfricpw": (0.0, 0.5)}
+          "fricpw": (0.1, 1.0), "rollfricpw": (0.0, 0.5),
+          # Phase 13 — SJKR cohesionEnergyDensity [J/m³], particle-particle. An
+          # optional dimension: it enters the canonical dict (and the hash) ONLY
+          # when > 0, so the cohesionless default is untouched. The 50000 ceiling
+          # is a literature-plausible upper bound; tune per cohesive material.
+          "cohed": (0.0, 50000.0),
+          # Phase 14 — coefficientRollingViscousDamping, the extra knob the
+          # epsd/epsd3 rolling variants need (epsd2/cdt disable it). Optional like
+          # cohed: enters canonical/hash ONLY when > 0, so an epsd2 study (and the
+          # whole wheat baseline) is byte-identical. Small constant per the catalog.
+          "rollvisc": (0.0, 1.0)}
 
 ROUND = 4               # decimals for canonicalization -> stable hashing
 
@@ -204,10 +214,21 @@ WHEAT_MATERIAL = {
 DT_WHEAT = 8.0e-6
 _R_MIN_WHEAT = 0.0017              # m — smallest wheat radius (dt scaling anchor)
 _NPART_DEFAULT = {"aor": 4000, "drum": 4600, "drum45": 4600}
-_MAT_HASH_KEYS = ("psd_mm", "rho", "ymod", "dt", "npart")   # name excluded
+# Phase 14 — the contact-model selectors (normal_model, rolling_model) and the
+# heap geometry (cyl_radius/cyl_height) join the material namespace: a non-default
+# choice gets its own cache namespace, the wheat defaults add nothing to the hash.
+_MAT_HASH_KEYS = ("psd_mm", "rho", "ymod", "dt", "npart", "cohesion",
+                  "normal_model", "rolling_model", "cyl_radius", "cyl_height",
+                  "particle_shape", "clump_spheres")  # name excluded
+# the locked-default heap geometry (lifted cylinder R 0.040 / H 0.100, Phase 3)
+CYL_RADIUS_DEFAULT = 0.040
+CYL_HEIGHT_DEFAULT = 0.100
 # the wheat default in canonical form — material_canon returns None on a match
 _WHEAT_CANON_CORE = {"psd_mm": [[3.4, 0.25], [3.7, 0.5], [4.0, 0.25]],
-                     "rho": 1400.0, "ymod": 1.0e7, "dt": DT_WHEAT, "npart": 4000}
+                     "rho": 1400.0, "ymod": 1.0e7, "dt": DT_WHEAT, "npart": 4000,
+                     "cohesion": "none", "normal_model": "hertz",
+                     "rolling_model": "epsd2", "cyl_radius": 0.04, "cyl_height": 0.1,
+                     "particle_shape": "sphere", "clump_spheres": None}
 
 
 def _sig(v: float, digits: int = 5) -> float:
@@ -239,7 +260,14 @@ def material_canon(material: dict | None) -> dict | None:
     if "rho" in m:                                   # already canonical
         m = {"name": m.get("name"), "psd_mm": m["psd_mm"],
              "particle_density_kgm3": m["rho"], "youngs_modulus_pa": m["ymod"],
-             "timestep_s": m.get("dt"), "n_particles": m["npart"]}
+             "timestep_s": m.get("dt"), "n_particles": m["npart"],
+             "cohesion": m.get("cohesion", "none"),
+             "normal_model": m.get("normal_model", "hertz"),
+             "rolling_model": m.get("rolling_model", "epsd2"),
+             "cyl_radius_m": m.get("cyl_radius", CYL_RADIUS_DEFAULT),
+             "cyl_height_m": m.get("cyl_height", CYL_HEIGHT_DEFAULT),
+             "particle_shape": m.get("particle_shape", "sphere"),
+             "clump_spheres": m.get("clump_spheres")}
 
     raw_psd = m.get("psd_mm") or WHEAT_MATERIAL["psd_mm"]
     try:
@@ -271,8 +299,67 @@ def material_canon(material: dict | None) -> dict | None:
     if not 1.0e-7 <= dt <= 5.0e-5:
         raise ValueError(f"timestep {dt:g} s outside 1e-7–5e-5 — check PSD/E inputs")
 
+    # Phase 13 — contact-model selector: "sjkr" appends `cohesion sjkr` to the
+    # model string and activates the cohesionEnergyDensity fix; "none" is the
+    # cohesionless default (which keeps a material wheat-equivalent → hash None).
+    cohesion = str(m.get("cohesion") or "none").lower()
+    if cohesion not in ("none", "sjkr"):
+        raise ValueError(f"material.cohesion must be 'none' or 'sjkr' (got {cohesion!r})")
+
+    # Phase 14 — contact-model variant. normal_model picks the force law
+    # (hertz default; hooke adds a characteristicVelocity fix), rolling_model
+    # the rolling-resistance scheme (epsd2 default; epsd/epsd3 add a viscous
+    # damping fix — see docs/liggghts-knobs.md). Defaults keep a material
+    # wheat-equivalent → hash None → legacy cache preserved byte-for-byte.
+    normal_model = str(m.get("normal_model") or "hertz").lower()
+    if normal_model not in ("hertz", "hooke"):
+        raise ValueError(f"material.normal_model must be 'hertz' or 'hooke' (got {normal_model!r})")
+    rolling_model = str(m.get("rolling_model") or "epsd2").lower()
+    if rolling_model not in ("cdt", "epsd", "epsd2", "epsd3"):
+        raise ValueError("material.rolling_model must be one of cdt/epsd/epsd2/epsd3 "
+                         f"(got {rolling_model!r})")
+
+    # Phase 14 — heap test geometry (lifted cylinder). Validated to stay well
+    # inside the simulation box and leave a sane insertion clearance; protocol
+    # SPEEDS (lift rate) stay code-level (Phase-3 rate-sensitivity).
+    cyl_radius = float(m.get("cyl_radius_m") or CYL_RADIUS_DEFAULT)
+    cyl_height = float(m.get("cyl_height_m") or CYL_HEIGHT_DEFAULT)
+    if not 0.02 <= cyl_radius <= 0.10:
+        raise ValueError(f"geometry.cyl_radius_m {cyl_radius} outside 0.02–0.10 m")
+    if not 0.05 <= cyl_height <= 0.20:
+        raise ValueError(f"geometry.cyl_height_m {cyl_height} outside 0.05–0.20 m")
+
+    # Phase 15 — particle shape. "sphere" is the locked default (single spheres
+    # at the PSD); "multisphere" replaces the PSD with one rigid clump defined by
+    # an inline list of overlapping sub-spheres [[x, y, z, r], ...] in clump
+    # coordinates (m). Shape joins the material namespace, so a clump gets its own
+    # cache; the sphere default adds nothing → legacy hashes preserved byte-for-byte.
+    particle_shape = str(m.get("particle_shape") or "sphere").lower()
+    if particle_shape not in ("sphere", "multisphere"):
+        raise ValueError("material.particle_shape must be 'sphere' or 'multisphere' "
+                         f"(got {particle_shape!r})")
+    clump_spheres = None
+    if particle_shape == "multisphere":
+        raw_clump = m.get("clump_spheres")
+        if not raw_clump or len(raw_clump) < 2:
+            raise ValueError("multisphere material needs clump_spheres: a list of "
+                             "≥2 [x, y, z, r] sub-spheres (m)")
+        clump_spheres = []
+        for row in raw_clump:
+            try:
+                x, y, z, r = (float(v) for v in row)
+            except (TypeError, ValueError):
+                raise ValueError("each clump sphere must be [x, y, z, r] (4 numbers, m)")
+            if not 1.0e-4 <= r <= 0.05:
+                raise ValueError(f"clump sub-sphere radius {r} m outside 1e-4–0.05")
+            clump_spheres.append([_sig(x), _sig(y), _sig(z), _sig(r)])
+
     canon = {"name": str(m.get("name") or "custom"), "psd_mm": psd,
-             "rho": _sig(rho), "ymod": _sig(ymod), "dt": dt, "npart": npart}
+             "rho": _sig(rho), "ymod": _sig(ymod), "dt": dt, "npart": npart,
+             "cohesion": cohesion, "normal_model": normal_model,
+             "rolling_model": rolling_model,
+             "cyl_radius": _sig(cyl_radius), "cyl_height": _sig(cyl_height),
+             "particle_shape": particle_shape, "clump_spheres": clump_spheres}
     if {k: canon[k] for k in _MAT_HASH_KEYS} == _WHEAT_CANON_CORE:
         return None
     return canon
@@ -288,11 +375,19 @@ def _mean_particle_volume(psd_mm) -> float:
     return 1.0 / inv
 
 
-# aor insertion region (templates/aor.in: cylinder r 0.0375, z 0.003-0.085)
-# and the single-shot density insert/pack reliably achieves with overlapcheck.
-# Wheat: 4177 capacity vs the 4000 default — consistent by construction.
-_AOR_INSERT_VOLUME = 3.62e-4   # m³
+# aor insertion region (templates/aor.in: cylinder r cyl_radius-0.0025, z 0.003..
+# cyl_height-0.015) and the single-shot density insert/pack reliably achieves with
+# overlapcheck. Wheat: 4177 capacity vs the 4000 default — consistent by construction.
 _INSERT_PACK_FRAC = 0.30
+
+
+def _aor_insert_volume(mat: dict | None) -> float:
+    """Volume [m³] of the heap insertion region — follows the cylinder geometry
+    (Phase 14). At the wheat default this is 3.62e-4 m³ (the historical constant)."""
+    import math
+    r = (mat["cyl_radius"] if mat is not None else CYL_RADIUS_DEFAULT) - 0.0025
+    z_hi = (mat["cyl_height"] if mat is not None else CYL_HEIGHT_DEFAULT) - 0.015
+    return math.pi * r * r * (z_hi - 0.003)
 
 
 def heap_capacity(material: dict | None) -> int:
@@ -302,7 +397,7 @@ def heap_capacity(material: dict | None) -> int:
     smaller heap means a noisier angle measurement."""
     mat = material_canon(material)
     psd = (mat["psd_mm"] if mat is not None else WHEAT_MATERIAL["psd_mm"])
-    return int(_AOR_INSERT_VOLUME * _INSERT_PACK_FRAC / _mean_particle_volume(psd))
+    return int(_aor_insert_volume(mat) * _INSERT_PACK_FRAC / _mean_particle_volume(psd))
 
 
 def _npart_for(response: str, mat: dict) -> int:
@@ -343,13 +438,26 @@ def _settle_step_for(mat: dict | None) -> int:
 
 
 def _scaled_wall_limit(response: str, mat: dict | None) -> int:
-    """Wall limit scaled by simulation cost: particles × steps (∝ 1/dt)."""
+    """Wall limit scaled by simulation cost: particles × steps (∝ 1/dt), and ×3
+    for SJKR cohesion (Phase 1: the extra pairwise force costs ~3× runtime)."""
     base = RESPONSES[response]["wall_limit"]
     if mat is None:
         return base
     factor = ((_npart_for(response, mat) / _NPART_DEFAULT[response])
               * (DT_WHEAT / mat["dt"]))
+    if mat.get("cohesion") == "sjkr":
+        factor *= 3.0
     return min(int(base * max(1.0, factor * 1.3)), 6 * 3600)
+
+
+def _heap_fov(mat: dict | None) -> float | None:
+    """Orthographic snapshot field-of-view for the heap camera, scaled to a
+    custom cylinder so the heap is not clipped (None = wheat default 0.085 m).
+    Audit framing only — the angle measurement is geometry-agnostic."""
+    if mat is None or (mat["cyl_radius"], mat["cyl_height"]) == (
+            _sig(CYL_RADIUS_DEFAULT), _sig(CYL_HEIGHT_DEFAULT)):
+        return None
+    return max(0.085, mat["cyl_radius"] * 2.4)
 
 
 def _radius_range(mat: dict | None) -> tuple[float, float] | None:
@@ -370,7 +478,23 @@ _DEFAULT_PSD_BLOCK = (
     "fix\tpts2 all particletemplate/sphere 15485867 atom_type 1 density constant ${RHO} radius constant 0.00185\n"
     "fix\tpts3 all particletemplate/sphere 32452843 atom_type 1 density constant ${RHO} radius constant 0.0020\n"
     "fix\tpdd1 all particledistribution/discrete 32452867 3 pts1 0.25 pts2 0.50 pts3 0.25")
-_DEFAULT_CTX = {"rho": "1400", "ymod": "1.0e7", "dt": "8.0e-6"}
+# cohesive/cohstr drive the Phase-13 SJKR conditional: the default is cohesionless
+# (cohstr="" -> the model string is unchanged; the `{% if cohesive %}` blocks
+# collapse to nothing under trim_blocks/lstrip_blocks), keeping the default render
+# byte-identical to the static .in.
+#
+# Phase 14 — the model selectors (normal_model/rolling_model/needs_rollvisc) and
+# the aor region literals are pinned to the locked defaults here, so the default
+# render is still byte-identical to the static .in (the `{% if %}` blocks for the
+# epsd/hooke fixes collapse, and the geometry strings reproduce the literal text).
+_DEFAULT_AOR_REGION = {"box_block": "-0.14 0.14 -0.14 0.14 0. 0.20",
+                       "wall_plane": "0.13", "insert_r": "0.0375",
+                       "insert_zlo": "0.003", "insert_ztop": "0.085"}
+_DEFAULT_CTX = {"rho": "1400", "ymod": "1.0e7", "dt": "8.0e-6",
+                "cohesive": False, "cohstr": "",
+                "normal_model": "hertz", "rolling_model": "epsd2",
+                "needs_rollvisc": False, "multisphere": False, "clump_block": "",
+                **_DEFAULT_AOR_REGION}
 
 
 def _fmt_g(v: float) -> str:
@@ -391,6 +515,59 @@ def _psd_block(mat: dict) -> str:
     return "\n".join(lines)
 
 
+def _clump_block(mat: dict) -> str:
+    """Phase 15 — the multisphere particle-template lines (replaces _psd_block).
+    One rigid clump defined inline from mat['clump_spheres'] ([[x,y,z,r],...] in
+    m); LIGGGHTS Monte-Carlo-integrates the overlap-corrected mass (ntry). A
+    monodisperse distribution (pts1 weight 1.0) reuses the existing distinct-prime
+    seeds so LIGGGHTS' all-seeds-distinct constraint still holds."""
+    spheres = mat["clump_spheres"]
+    coords = " ".join(_fmt_g(c) for s in spheres for c in s)
+    return (f"fix\tpts1 all particletemplate/multisphere {PSD_SEEDS[0]} "
+            f"atom_type 1 density constant ${{RHO}} nspheres {len(spheres)} "
+            f"ntry 1000000 spheres {coords} type 1\n"
+            f"fix\tpdd1 all particledistribution/discrete {PSD_DIST_SEED} 1 pts1 1.0")
+
+
+def _clump_equiv_volume(spheres, ntry: int = 400000) -> float:
+    """Overlap-corrected union volume [m³] of a multisphere clump, by Monte-Carlo
+    over the bounding box — the same quantity LIGGGHTS integrates to set the rigid
+    body's mass (ρ·V_clump). Summing sub-sphere volumes would double-count the
+    intra-clump overlap and bias the bulk density high; this is what
+    measure_bulk_density needs to weigh each body. Deterministic (fixed seed) so a
+    cached result and a recompute agree."""
+    import numpy as np
+    pts = np.array([[x, y, z] for x, y, z, _ in spheres], dtype=float)
+    rad = np.array([r for *_, r in spheres], dtype=float)
+    lo = (pts - rad[:, None]).min(axis=0)
+    hi = (pts + rad[:, None]).max(axis=0)
+    rng = np.random.default_rng(20260613)
+    s = rng.uniform(lo, hi, size=(ntry, 3))
+    inside = np.zeros(ntry, dtype=bool)
+    for c, r in zip(pts, rad):
+        inside |= ((s - c) ** 2).sum(axis=1) <= r * r
+    return float(np.prod(hi - lo) * inside.mean())
+
+
+def _aor_region_ctx(mat: dict | None) -> dict:
+    """Heap-test box / wall / insertion-region strings derived from the cylinder
+    geometry (Phase 14). At the locked default geometry it reproduces the static
+    .in literals byte-for-byte (so a default-geometry custom material renders the
+    historical region lines); otherwise it scales the box and insertion clearance."""
+    if mat is None or (mat["cyl_radius"], mat["cyl_height"]) == (
+            _sig(CYL_RADIUS_DEFAULT), _sig(CYL_HEIGHT_DEFAULT)):
+        return dict(_DEFAULT_AOR_REGION)
+    r, h = mat["cyl_radius"], mat["cyl_height"]
+    box_half = r + 0.10                       # generous safety wall outside the heap
+    box_ztop = max(0.20, h * 2.0)
+    hw = _fmt_g(box_half)
+    return {"box_block": f"-{hw} {hw} -{hw} {hw} 0. {_fmt_g(box_ztop)}",
+            "wall_plane": _fmt_g(box_half - 0.01),
+            "insert_r": _fmt_g(r - 0.0025),    # just inside the mesh
+            "insert_zlo": "0.003",
+            "insert_ztop": _fmt_g(h - 0.015)}
+
+
 def _render_text(response: str, mat: dict | None) -> str:
     """Render a response's .j2 template. mat=None renders the wheat defaults —
     byte-identical to the static .in file (regression-tested), which is why
@@ -401,10 +578,37 @@ def _render_text(response: str, mat: dict | None) -> str:
     ctx = dict(_DEFAULT_CTX, npart=str(_NPART_DEFAULT[response]),
                psd_block=_DEFAULT_PSD_BLOCK)
     if mat is not None:
+        # the hold-out is the cohesionless wheat 45° drum by definition — never
+        # render SJKR for it (mirrors the canonical() cohed drop for drum45)
+        cohesive = mat.get("cohesion") == "sjkr" and response != "drum45"
+        # Phase 14 — the 45° hold-out is double-pinned to the validated contact
+        # model (hertz/epsd2) just as it is pinned cohesionless and wall-friction-
+        # fixed: a non-default best.json must never un-pin the validation.
+        if response == "drum45":
+            normal_model, rolling_model = "hertz", "epsd2"
+        else:
+            normal_model = mat["normal_model"]
+            rolling_model = mat["rolling_model"]
+        needs_rollvisc = rolling_model in ("epsd", "epsd3")
+        # Phase 15 — multisphere renders for the HEAP ONLY (heap-only scope, like
+        # Phase-14 geometry); drum/drum45 templates carry no multisphere block, so
+        # the `response == "aor"` guard pins the 45° hold-out (and the drum) to
+        # single spheres — the fourth pin, alongside cohesion/wall-friction/model.
+        multisphere = mat.get("particle_shape") == "multisphere" and response == "aor"
         ctx = {"rho": _fmt_g(mat["rho"]), "ymod": _fmt_g(mat["ymod"]),
                "dt": _fmt_g(mat["dt"]), "npart": str(_npart_for(response, mat)),
-               "psd_block": _psd_block(mat)}
-    return Template(j2.read_text(), keep_trailing_newline=True).render(**ctx)
+               "psd_block": _psd_block(mat),
+               "cohesive": cohesive, "cohstr": " cohesion sjkr" if cohesive else "",
+               "normal_model": normal_model, "rolling_model": rolling_model,
+               "needs_rollvisc": needs_rollvisc,
+               "multisphere": multisphere,
+               "clump_block": _clump_block(mat) if multisphere else "",
+               **_aor_region_ctx(mat)}
+    # trim_blocks/lstrip_blocks make `{% if %}` blocks vanish without leaving a
+    # blank line, so a cohesionless render is byte-identical to the static .in
+    # (no block tags there to be affected). Verified by test_default_render_*.
+    return Template(j2.read_text(), keep_trailing_newline=True,
+                    trim_blocks=True, lstrip_blocks=True).render(**ctx)
 
 
 def _render_template(response: str, mat: dict, trial: Path) -> Path:
@@ -444,6 +648,20 @@ def canonical(params: dict, response: str = "aor") -> dict:
         "rest": float(p.get("rest", 0.5)),
         "gravz": float(p.get("gravz", -1.0)),
     }
+    # Phase 13 — SJKR cohesionEnergyDensity. Enters the canonical dict (and the
+    # hash) ONLY when > 0, exactly like the material's default-omits-itself
+    # contract: a cohesionless request is byte-identical to the pre-Phase-13
+    # canonical, so every legacy cache key is preserved.
+    cohed = float(p.get("cohed", 0.0))
+    if cohed:
+        out["cohed"] = cohed
+    # Phase 14 — coefficientRollingViscousDamping (epsd/epsd3). Same opt-in
+    # contract as cohed: in the canonical dict (and hash) only when > 0, so an
+    # epsd2 candidate is byte-identical to the pre-Phase-14 canonical. The
+    # rolling-model selector itself lives in the material namespace.
+    rollvisc = float(p.get("rollvisc", 0.0))
+    if rollvisc:
+        out["rollvisc"] = rollvisc
     if response == "aor":
         out["lifth"] = float(p.get("lifth", 0.055))
     elif response == "drum":
@@ -467,8 +685,15 @@ def canonical(params: dict, response: str = "aor") -> dict:
         out["capfric"] = float(p.get("capfric", 0.36))
         out["caproll"] = float(p.get("caproll", 0.29))
         out["tilt"] = float(p.get("tilt", 45.0))
+        # The hold-out is the cohesionless wheat 45° drum by definition — drop
+        # any passed cohesion so a cohesive best.json can never silently turn on
+        # SJKR for the validation (same reasoning as the fricpw pin above).
+        out.pop("cohed", None)
+        # ditto the Phase-14 viscous-damping knob: the hold-out is pinned epsd2
+        # (no viscous term), so a passed rollvisc must not leak into it.
+        out.pop("rollvisc", None)
     for key, (lo, hi) in RANGES.items():
-        if not lo <= out[key] <= hi:
+        if key in out and not lo <= out[key] <= hi:
             raise ValueError(
                 f"{key}={out[key]} outside calibration range [{lo}, {hi}]")
     return {k: round(v, ROUND) for k, v in out.items()}
@@ -509,16 +734,52 @@ def _tag(params: dict, seed: int, response: str = "aor",
 
 # ------------------------------------------------------------- one simulation
 
+# generated meshes for custom geometry live here (git-ignored, keyed by the
+# geometry so two studies of the same rig size share one file)
+MESH_CACHE = CACHE / "meshes"
+
+
+def _mesh_for(response: str, mat: dict | None) -> Path:
+    """The mesh file for this (response, geometry). The locked-default geometry
+    (or any non-heap response — drum/orifice geometry is deferred) returns the
+    static registry mesh; a non-default heap cylinder is generated on demand by
+    the Phase-1 STL generator into MESH_CACHE (idempotent)."""
+    spec = RESPONSES[response]
+    if mat is None or response != "aor":
+        return spec["mesh"]
+    r, h = mat["cyl_radius"], mat["cyl_height"]
+    if (r, h) == (_sig(CYL_RADIUS_DEFAULT), _sig(CYL_HEIGHT_DEFAULT)):
+        return spec["mesh"]
+    import importlib.util
+    src = REPO_ROOT / "templates" / "make_cylinder_stl.py"
+    gen_spec = importlib.util.spec_from_file_location("make_cylinder_stl", src)
+    gen = importlib.util.module_from_spec(gen_spec)
+    gen_spec.loader.exec_module(gen)
+    MESH_CACHE.mkdir(parents=True, exist_ok=True)
+    out = MESH_CACHE / f"cylinder_r{_fmt_g(r)}_h{_fmt_g(h)}.stl"
+    if not out.exists():                       # z0/segments match the static mesh
+        gen.write_stl(str(out), radius=r, height=h, z0=0.0005, segments=48)
+    return out
+
+
 def _build_argv(canon: dict, seed: int, trial: Path, tag: str,
-                response: str = "aor", *, template: Path | None = None) -> list[str]:
+                response: str = "aor", *, template: Path | None = None,
+                mat: dict | None = None) -> list[str]:
     """mpirun command for one run. MESH must be space-free (LIGGGHTS re-tokenizes
     the -var value and the repo root contains a space) -> pass it relative to the
     run cwd, whose path components are all space-free. `template` overrides the
-    registry's static .in file (the rendered custom-material variant)."""
+    registry's static .in file (the rendered custom-material variant); `mat`
+    selects a custom-geometry mesh (Phase 14)."""
     spec = RESPONSES[response]
-    mesh_rel = os.path.relpath(spec["mesh"], trial)
+    mesh_rel = os.path.relpath(_mesh_for(response, mat), trial)
+    # Phase 15 — multisphere heap runs serial: fix multisphere migrates rigid
+    # bodies across ranks in this build, but the tutorial-proven path is -np 1.
+    # Single-sphere runs keep the validated 2-rank launch unchanged.
+    multisphere = (mat is not None and mat.get("particle_shape") == "multisphere"
+                   and response == "aor")
+    ranks = 1 if multisphere else NRANKS
     argv = [
-        MPIRUN, "-np", str(NRANKS), str(LMP),
+        MPIRUN, "-np", str(ranks), str(LMP),
         "-in", str(template if template is not None else spec["template"]),
         "-var", "TAG", tag,
         "-var", "MESH", mesh_rel,
@@ -530,6 +791,10 @@ def _build_argv(canon: dict, seed: int, trial: Path, tag: str,
         "-var", "SEED", str(seed),
         "-var", "GRAVZ", f"{canon['gravz']}",
     ]
+    if "cohed" in canon:                   # Phase 13 — only on cohesive runs
+        argv += ["-var", "COHED", f"{canon['cohed']}"]
+    if "rollvisc" in canon:                # Phase 14 — only on epsd/epsd3 runs that search it
+        argv += ["-var", "ROLLVISC", f"{canon['rollvisc']}"]
     if response == "aor":
         argv += ["-var", "LIFTH", f"{canon['lifth']}"]
     elif response in ("drum", "drum45"):
@@ -546,7 +811,7 @@ def _build_argv(canon: dict, seed: int, trial: Path, tag: str,
 
 def _launch_sim(canon: dict, seed: int, trial: Path, tag: str,
                 response: str = "aor", *, template: Path | None = None,
-                wall_limit: int | None = None) -> None:
+                mat: dict | None = None, wall_limit: int | None = None) -> None:
     """Launch one LIGGGHTS run to completion in `trial`. Raises SimError on a
     nonzero exit or timeout. Factored out so tests can stub the engine.
 
@@ -558,7 +823,7 @@ def _launch_sim(canon: dict, seed: int, trial: Path, tag: str,
         raise SimError(f"lmp_auto not found at {LMP} — build it first (Phase 0)")
     if wall_limit is None:
         wall_limit = RESPONSES[response]["wall_limit"]
-    argv = _build_argv(canon, seed, trial, tag, response, template=template)
+    argv = _build_argv(canon, seed, trial, tag, response, template=template, mat=mat)
     with open(trial / "run.out", "wb") as out:
         proc = subprocess.Popen(
             argv, cwd=str(trial), stdin=subprocess.DEVNULL,
@@ -641,7 +906,7 @@ def _simulate(canon: dict, seed: int, *, force: bool, response: str = "aor",
     (trial / "post").mkdir(parents=True, exist_ok=True)
     try:
         template = _render_template(response, mat, trial) if mat is not None else None
-        _launch_sim(canon, seed, trial, tag, response, template=template,
+        _launch_sim(canon, seed, trial, tag, response, template=template, mat=mat,
                     wall_limit=_scaled_wall_limit(response, mat))
         return {**sim, "status": "ran"}
     except Exception as err:           # noqa: BLE001 — never crash the batch
@@ -674,8 +939,18 @@ def _finish(canon: dict, sim: dict, response: str = "aor",
                     side_view=spec.get("side_view", False),
                     radius_range=rr)
             else:                      # snapshot + measure + audit
-                result = render.render_trial(trial, tag=tag, radius_range=rr,
-                                             settle_step=_settle_step_for(mat))
+                # Phase 15 — for a multisphere heap, pass the overlap-corrected
+                # clump volume so bulk density weighs each rigid body by ρ·V_clump
+                # (not by summed sub-sphere volumes, which double-count overlap).
+                clump_vol = (_clump_equiv_volume(mat["clump_spheres"])
+                             if mat is not None
+                             and mat.get("particle_shape") == "multisphere"
+                             else None)
+                result = render.render_trial(
+                    trial, tag=tag, radius_range=rr,
+                    settle_step=_settle_step_for(mat),
+                    cyl_radius=(mat["cyl_radius"] if mat is not None else None),
+                    fov=_heap_fov(mat), clump_volume_m3=clump_vol)
             result.update(base)
             _prune(trial, tag, response,
                    steady_step=_steady_step_for(response, mat),

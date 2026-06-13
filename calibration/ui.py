@@ -368,6 +368,56 @@ with tab_cfg:
             help="drum tests auto-scale their count to keep the published "
                  "50% fill")
 
+        # Phase 13 — contact-model selector. Cohesion is a material property:
+        # ticking it appends `cohesion sjkr` to the model string and activates a
+        # calibratable cohesionEnergyDensity. New, unvalidated physics (the
+        # built-in wheat is cohesionless) at ~3× runtime per sim.
+        cohesive_mat = st.checkbox(
+            "Cohesive material (SJKR cohesion model)",
+            value=str(mat_saved.get("cohesion", "none")) == "sjkr",
+            disabled=status["running"], key="cohesive_mat",
+            help="Adds `cohesion sjkr` + a calibratable cohesionEnergyDensity. "
+                 "Simulates in its own cache namespace; ~3× slower per run. "
+                 "Identifiable only against a cohesion-sensitive measured target.")
+
+        # Phase 14 — contact-model variant + heap geometry. Both join the cache
+        # namespace; protocol SPEEDS (lift rate, drum rpm) stay code-level
+        # (rate-sensitive — Phase 3). Drum/orifice dimensions are deferred.
+        _NM, _RM = ["hertz", "hooke"], ["epsd2", "epsd", "epsd3", "cdt"]
+        cmcols = st.columns(4)
+        normal_model = cmcols[0].selectbox(
+            "normal model", _NM,
+            index=_NM.index(str(mat_saved.get("normal_model", "hertz"))),
+            disabled=status["running"],
+            help="hooke adds a characteristicVelocity (numerical input); "
+                 "hertz is the standard, measurable-input choice")
+        rolling_model = cmcols[1].selectbox(
+            "rolling model", _RM,
+            index=_RM.index(str(mat_saved.get("rolling_model", "epsd2"))),
+            disabled=status["running"],
+            help="epsd/epsd3 add coefficientRollingViscousDamping; epsd2/cdt do "
+                 "not. μ_r is NOT portable across variants — recalibrate on a switch.")
+        cyl_r_in = cmcols[2].number_input(
+            "heap cyl radius [m]", min_value=0.02, max_value=0.10,
+            value=float(mat_saved.get("cyl_radius_m", runner.CYL_RADIUS_DEFAULT)),
+            step=0.005, format="%.3f", disabled=status["running"],
+            help="lift SPEED stays code-level (rate-sensitive, Phase 3) — only "
+                 "the rig DIMENSIONS are per-study")
+        cyl_h_in = cmcols[3].number_input(
+            "heap cyl height [m]", min_value=0.05, max_value=0.20,
+            value=float(mat_saved.get("cyl_height_m", runner.CYL_HEIGHT_DEFAULT)),
+            step=0.005, format="%.3f", disabled=status["running"])
+
+        # Phase 15 — multisphere is config-authored (the clump geometry is a
+        # research choice, not a UI knob). Surface it read-only when loaded so it
+        # is visible and preserved across a save, never silently dropped.
+        if str(mat_saved.get("particle_shape")) == "multisphere" \
+                and mat_saved.get("clump_spheres"):
+            st.caption(
+                f":material/deployed_code: multisphere clump "
+                f"({len(mat_saved['clump_spheres'])} sub-spheres, heap only) — "
+                "set in config.json; preserved on save. Single-sphere is the default.")
+
         import pandas as pd
         psd_df = pd.DataFrame(psd_upload or mat_saved["psd_mm"],
                               columns=["diameter_mm", "mass_fraction"])
@@ -480,6 +530,45 @@ with tab_cfg:
         if wall_on:
             bounds.update(wall_bounds)
 
+        # Phase 13 — opt-in cohesion dimension, valid only for a cohesive
+        # material (the model string is selected there, not here).
+        crlo, crhi = runner.RANGES["cohed"]
+        clo, chi = cfg.search_bounds.get("cohed", optimize.SEARCH_BOUNDS["cohed"])
+        cohed_on = st.checkbox(
+            "Calibrate cohesion (`cohed`, SJKR cohesionEnergyDensity [J/m³]) — "
+            "requires the cohesive-material toggle above and a cohesion-sensitive "
+            "response with a measured target.",
+            value="cohed" in cfg.search_bounds,
+            disabled=status["running"] or not cohesive_mat, key="cohed_on")
+        cohed_bounds = st.slider(
+            "cohed [J/m³]", min_value=float(crlo), max_value=float(crhi),
+            value=(float(clo), float(chi)), step=500.0,
+            disabled=status["running"] or not cohesive_mat,
+            help="Only searched when the box above is ticked AND the material "
+                 "is cohesive; ignored otherwise.")
+        if cohed_on and cohesive_mat:
+            bounds["cohed"] = cohed_bounds
+
+        # Phase 14 — opt-in rolling-viscous-damping dimension, valid only for an
+        # epsd/epsd3 rolling model (selected above, not here).
+        _rv_ok = rolling_model in ("epsd", "epsd3")
+        vrlo, vrhi = runner.RANGES["rollvisc"]
+        vlo, vhi = cfg.search_bounds.get("rollvisc", optimize.SEARCH_BOUNDS["rollvisc"])
+        rollvisc_on = st.checkbox(
+            "Calibrate rolling viscous damping (`rollvisc`, "
+            "coefficientRollingViscousDamping) — requires an epsd/epsd3 rolling "
+            "model above and a discriminating measured target.",
+            value="rollvisc" in cfg.search_bounds,
+            disabled=status["running"] or not _rv_ok, key="rollvisc_on")
+        rollvisc_bounds = st.slider(
+            "rollvisc", min_value=float(vrlo), max_value=float(vrhi),
+            value=(float(vlo), float(vhi)), step=0.01,
+            disabled=status["running"] or not _rv_ok,
+            help="Only searched when the box above is ticked AND the rolling "
+                 "model is epsd/epsd3; ignored otherwise.")
+        if rollvisc_on and _rv_ok:
+            bounds["rollvisc"] = rollvisc_bounds
+
         st.markdown("**Optimizer**")
         ocols = st.columns(5)
         sampler = ocols[0].selectbox("sampler", ["gp", "tpe"],
@@ -519,7 +608,19 @@ with tab_cfg:
             "youngs_modulus_pa": float(ymod_in),
             "timestep_s": None if dt_auto_flag else float(dt_in),
             "n_particles": int(npart_in),
+            "cohesion": "sjkr" if cohesive_mat else "none",
+            "normal_model": normal_model,           # Phase 14
+            "rolling_model": rolling_model,          # Phase 14
+            "cyl_radius_m": float(cyl_r_in),         # Phase 14
+            "cyl_height_m": float(cyl_h_in),         # Phase 14
         }
+        # Phase 15 — particle shape. The UI does not author clump geometry (a
+        # research task, not plumbing — config.json is the source of truth), but
+        # it must NOT silently drop a config-authored multisphere clump on save.
+        if str(mat_saved.get("particle_shape")) == "multisphere" \
+                and mat_saved.get("clump_spheres"):
+            material_in["particle_shape"] = "multisphere"
+            material_in["clump_spheres"] = mat_saved["clump_spheres"]
         try:        # physical validation; default-equivalent collapses to None
             material = None if runner.material_canon(material_in) is None else material_in
         except ValueError as err:

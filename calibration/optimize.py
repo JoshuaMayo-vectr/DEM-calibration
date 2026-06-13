@@ -88,11 +88,22 @@ SEARCH_BOUNDS = {"fric": (0.20, 0.80), "rollfric": (0.05, 0.25), "rest": (0.30, 
                  # Phase 12 — particle-wall friction, opt-in. Defaults mirror the
                  # particle-particle boxes; a study only searches these when its
                  # config names them in search_bounds (else canonical() mirrors).
-                 "fricpw": (0.20, 0.80), "rollfricpw": (0.05, 0.25)}
+                 "fricpw": (0.20, 0.80), "rollfricpw": (0.05, 0.25),
+                 # Phase 13 — SJKR cohesionEnergyDensity [J/m³], opt-in AND only
+                 # valid when the study's material is cohesive (rejected at load
+                 # otherwise). A discriminating cohesion-sensitive target is the
+                 # gating dependency before this localizes a point, not the code.
+                 "cohed": (1000.0, 30000.0),
+                 # Phase 14 — coefficientRollingViscousDamping, opt-in AND only
+                 # valid when the study's material uses an epsd/epsd3 rolling
+                 # model (rejected at load otherwise — epsd2/cdt have no viscous
+                 # term). Like cohed, identifiability gates the demonstration.
+                 "rollvisc": (0.0, 0.5)}
 # The full set a study MAY search, in display order. A config picks a subset:
 # REQUIRED_DIMS are always present (default study = exactly these), the wall
-# dims (fricpw/rollfricpw) are optional Phase-12 additions.
-SEARCHABLE_DIMS = ("fric", "rollfric", "rest", "fricpw", "rollfricpw")
+# dims (fricpw/rollfricpw, Phase 12), cohed (Phase 13) and rollvisc (Phase 14)
+# are optional additions.
+SEARCHABLE_DIMS = ("fric", "rollfric", "rest", "fricpw", "rollfricpw", "cohed", "rollvisc")
 REQUIRED_DIMS = ("fric", "rollfric", "rest")
 DIMS = REQUIRED_DIMS                   # default-study search dimensions
 
@@ -125,9 +136,12 @@ class StudyConfig:
     density: dict = field(default_factory=lambda: {
         "weight": 0.0, "target": 780.0, "sigma": 50.0})
     fail_penalty: float = 100.0
-    # material inputs (PSD/density/E/dt/n_particles) — None = the wheat
-    # default (legacy cache namespace). NEVER searched: fixed physics per
-    # study, validated through runner.material_canon at load time.
+    # material + rig inputs — None = the wheat default (legacy cache namespace).
+    # Carries PSD/density/E/dt/n_particles (Phase 8.5), cohesion (Phase 13), the
+    # contact-model selectors normal_model/rolling_model and the heap geometry
+    # cyl_radius_m/cyl_height_m (Phase 14 — the config's separate `geometry`
+    # block folds in here). NEVER searched: fixed physics per study, validated
+    # through runner.material_canon at load time.
     material: dict | None = None
 
     @property
@@ -192,7 +206,7 @@ def save_config(cfg: StudyConfig, path: Path) -> Path:
     repo — the UI calls this, never serializes JSON itself (single source of
     truth). Round-trips through load_config to a fixed point."""
     payload = {
-        "schema_version": 2,
+        "schema_version": 4,
         "study_name": cfg.study_name,
         "outdir": _repo_rel(cfg.outdir),
         "responses": {name: {"enabled": bool(rc["enabled"]),
@@ -222,7 +236,25 @@ def save_config(cfg: StudyConfig, path: Path) -> Path:
             "timestep_s": (float(cfg.material["timestep_s"])
                            if cfg.material.get("timestep_s") else None),
             "n_particles": int(cfg.material["n_particles"]),
+            "cohesion": str(cfg.material.get("cohesion", "none")),   # Phase 13
+            "normal_model": str(cfg.material.get("normal_model", "hertz")),    # Phase 14
+            "rolling_model": str(cfg.material.get("rolling_model", "epsd2")),  # Phase 14
         }
+        # Phase 14 — heap geometry is a separate top-level block (protocol, not
+        # material); written only when it differs from the locked default so a
+        # default-geometry config stays clean.
+        cyl_r = float(cfg.material.get("cyl_radius_m", runner.CYL_RADIUS_DEFAULT))
+        cyl_h = float(cfg.material.get("cyl_height_m", runner.CYL_HEIGHT_DEFAULT))
+        if (cyl_r, cyl_h) != (runner.CYL_RADIUS_DEFAULT, runner.CYL_HEIGHT_DEFAULT):
+            payload["geometry"] = {"cyl_radius_m": cyl_r, "cyl_height_m": cyl_h}
+        # Phase 15 — particle shape. Written into the material block only for a
+        # multisphere clump; the sphere default is omitted so a default-shape
+        # config stays clean (and v1–v3 configs round-trip unchanged).
+        if str(cfg.material.get("particle_shape", "sphere")) == "multisphere" \
+                and cfg.material.get("clump_spheres"):
+            payload["material"]["particle_shape"] = "multisphere"
+            payload["material"]["clump_spheres"] = [
+                [float(c) for c in s] for s in cfg.material["clump_spheres"]]
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n")
@@ -234,18 +266,28 @@ def load_config(path: Path) -> StudyConfig:
     bounds outside runner.RANGES — the config can select responses and move
     targets, but cannot invent calibration physics."""
     raw = json.loads(Path(path).read_text())
-    if raw.get("schema_version") not in (1, 2):
+    if raw.get("schema_version") not in (1, 2, 3, 4):
         raise ValueError(f"unsupported config schema_version {raw.get('schema_version')!r}")
 
-    material = raw.get("material")          # v1 has none -> wheat default
-    if material is not None:
-        if not isinstance(material, dict):
-            raise ValueError("material must be an object")
-        filled = {**{k: v for k, v in runner.WHEAT_MATERIAL.items()}, **material}
+    # v1 has neither; v2 may carry material (incl. Phase-14 contact-model keys);
+    # v3 adds an optional top-level geometry block; v4 may carry a multisphere
+    # particle_shape + clump_spheres in the material block. All fold into one
+    # validated dict for runner — material_canon returns None only when material
+    # AND geometry are the locked wheat defaults (so v1–v3 still hit the legacy
+    # cache, and a default-shape v4 config is byte-identical to a v3 one).
+    material = raw.get("material")
+    geometry = raw.get("geometry")
+    if material is not None and not isinstance(material, dict):
+        raise ValueError("material must be an object")
+    if geometry is not None and not isinstance(geometry, dict):
+        raise ValueError("geometry must be an object")
+    if material is not None or geometry is not None:
+        filled = {**{k: v for k, v in runner.WHEAT_MATERIAL.items()},
+                  **(material or {}), **(geometry or {})}
         try:                                 # full physical validation
             canon = runner.material_canon(filled)
         except ValueError as err:
-            raise ValueError(f"material: {err}")
+            raise ValueError(f"material/geometry: {err}")
         material = None if canon is None else filled   # default-equivalent -> None
 
     responses = {}
@@ -290,6 +332,26 @@ def load_config(path: Path) -> StudyConfig:
             raise ValueError(f"search_bounds[{d!r}]=({lo}, {hi}) must satisfy "
                              f"{rlo} <= lo < hi <= {rhi} (runner.RANGES)")
         search_bounds[d] = (lo, hi)
+
+    # Phase 13 — cohesion is a meaningless search dimension without SJKR active.
+    # The contact model is selected by the material (material.cohesion == "sjkr"),
+    # not the search box, so reject cohed unless the study's material is cohesive.
+    if "cohed" in search_bounds:
+        cohesive = material is not None and str(material.get("cohesion")) == "sjkr"
+        if not cohesive:
+            raise ValueError(
+                "search_bounds names 'cohed' but the study material is not "
+                "cohesive — set material.cohesion = 'sjkr' to calibrate cohesion")
+
+    # Phase 14 — rolling viscous damping is meaningless unless the rolling model
+    # is epsd/epsd3 (epsd2/cdt disable the viscous term). Same gate as cohed.
+    if "rollvisc" in search_bounds:
+        rm = str((material or {}).get("rolling_model", "epsd2")).lower()
+        if rm not in ("epsd", "epsd3"):
+            raise ValueError(
+                "search_bounds names 'rollvisc' but the study material's "
+                "rolling_model is not epsd/epsd3 — set material.rolling_model = "
+                "'epsd' (or 'epsd3') to calibrate rolling viscous damping")
 
     sampler = raw.get("sampler", "gp")
     if sampler not in ("gp", "tpe"):

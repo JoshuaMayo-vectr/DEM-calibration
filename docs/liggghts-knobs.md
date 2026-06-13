@@ -16,9 +16,18 @@ syntax, physical meaning, typical range, and the contact-model choice that activ
 
 ```
 pair_style gran model {hertz|hooke} tangential {history|no_history} &
-    [rolling_friction {cdt|epsd|epsd2|epsd3}] [cohesion {sjkr|sjkr2}]
+    [cohesion {sjkr|sjkr2}] [rolling_friction {cdt|epsd|epsd2|epsd3}]
 pair_coeff * *
 ```
+
+**Keyword ORDER is enforced — `cohesion` must precede `rolling_friction`.**
+The parser walks a fixed sequence (surface → normal → cohesion → tangential →
+rolling_friction, `contact_models.h`); `... rolling_friction epsd2 cohesion sjkr`
+is rejected with *"Unknown argument or wrong keyword order: 'cohesion'"*
+(`pair_gran_base.h:129`). The verified `cohesion` tutorial puts it right after
+`tangential history` — so the Phase-13 templates render
+`tangential history cohesion sjkr rolling_friction epsd2`. *(Corrected 2026-06-13;
+the earlier `[rolling_friction] [cohesion]` ordering above was wrong.)*
 
 Two rules that bite if forgotten:
 

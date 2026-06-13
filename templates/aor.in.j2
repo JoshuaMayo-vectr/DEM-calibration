@@ -22,6 +22,15 @@ variable FRICPW     index 0.40          # mu_s particle-wall      [calibration t
 variable ROLLFRIC   index 0.05          # mu_r particle-particle, epsd2 [target]
 variable ROLLFRICPW index 0.05          # mu_r particle-wall, epsd2     [target]
 variable REST       index 0.50          # restitution             [target, weak]
+{% if cohesive %}
+variable COHED      index 0.0           # SJKR cohesionEnergyDensity [J/m3] [target]
+{% endif %}
+{% if needs_rollvisc %}
+variable ROLLVISC   index 0.1           # coefficientRollingViscousDamping (epsd/epsd3) [target]
+{% endif %}
+{% if normal_model == 'hooke' %}
+variable CHARVEL    index 2.0           # characteristicVelocity [m/s] (hooke only — numerical)
+{% endif %}
 variable SEED       index 49979687      # insertion seed — the seed-to-seed noise lever (Phase 4 varies this)
 # (the three particletemplate seeds and the distribution seed are fixed distinct
 #  primes below; they seed constant-radius templates so have negligible effect —
@@ -60,7 +69,7 @@ newton		off
 communicate	single vel yes
 units		si
 
-region		reg block -0.14 0.14 -0.14 0.14 0. 0.20 units box
+region		reg block {{ box_block }} units box
 create_box	2 reg
 
 neighbor	0.002 bin
@@ -74,8 +83,23 @@ fix 	m2 all property/global poissonsRatio peratomtype ${POIS} ${POIS}
 fix 	m3 all property/global coefficientRestitution peratomtypepair 2 ${REST} ${REST} ${REST} ${REST}
 fix 	m4 all property/global coefficientFriction peratomtypepair 2 ${FRIC} ${FRICPW} ${FRICPW} ${FRICPW}
 fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 ${ROLLFRIC} ${ROLLFRICPW} ${ROLLFRICPW} ${ROLLFRICPW}
+{% if cohesive %}
+# SJKR cohesion (Phase 13): cohesive materials only — particle-particle (1,1),
+# zero against the walls (no particle-wall cohesion to the cylinder/plate).
+fix 	m6 all property/global cohesionEnergyDensity peratomtypepair 2 ${COHED} 0.0 0.0 0.0
+{% endif %}
+{% if needs_rollvisc %}
+# epsd/epsd3 rolling-friction variant (Phase 14): viscous rolling-damping torque
+# (epsd2/cdt disable it — no fix emitted there). Mirrors the m4/m5 matrix shape.
+fix 	m7 all property/global coefficientRollingViscousDamping peratomtypepair 2 ${ROLLVISC} ${ROLLVISC} ${ROLLVISC} ${ROLLVISC}
+{% endif %}
+{% if normal_model == 'hooke' %}
+# hooke normal model (Phase 14): the linear spring needs a characteristic velocity
+# to back out its stiffness (a numerical input with no measurable counterpart).
+fix 	mcv all property/global characteristicVelocity scalar ${CHARVEL}
+{% endif %}
 
-pair_style gran model hertz tangential history rolling_friction epsd2
+pair_style gran model {{ normal_model }} tangential history{{ cohstr }} rolling_friction {{ rolling_model }}
 pair_coeff	* *
 
 timestep	${DT}
@@ -83,26 +107,39 @@ timestep	${DT}
 fix		gravi all gravity 9.81 vector 0.0 0.0 ${GRAVZ}
 
 # static base plate + safety side walls (all wall type 2)
-fix zfloor all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 zplane 0.0
-fix xw1 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 xplane -0.13
-fix xw2 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 xplane +0.13
-fix yw1 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 yplane -0.13
-fix yw2 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 2 yplane +0.13
+fix zfloor all wall/gran model {{ normal_model }} tangential history{{ cohstr }} rolling_friction {{ rolling_model }} primitive type 2 zplane 0.0
+fix xw1 all wall/gran model {{ normal_model }} tangential history{{ cohstr }} rolling_friction {{ rolling_model }} primitive type 2 xplane -{{ wall_plane }}
+fix xw2 all wall/gran model {{ normal_model }} tangential history{{ cohstr }} rolling_friction {{ rolling_model }} primitive type 2 xplane +{{ wall_plane }}
+fix yw1 all wall/gran model {{ normal_model }} tangential history{{ cohstr }} rolling_friction {{ rolling_model }} primitive type 2 yplane -{{ wall_plane }}
+fix yw2 all wall/gran model {{ normal_model }} tangential history{{ cohstr }} rolling_friction {{ rolling_model }} primitive type 2 yplane +{{ wall_plane }}
 
 # liftable cylinder: generated STL imported as a mesh wall (type 2)
 fix cyl all mesh/surface file ${MESH} type 2
-fix cylwall all wall/gran model hertz tangential history rolling_friction epsd2 mesh n_meshes 1 meshes cyl
+fix cylwall all wall/gran model {{ normal_model }} tangential history{{ cohstr }} rolling_friction {{ rolling_model }} mesh n_meshes 1 meshes cyl
 
 # ---------------------------------------------------------------- particles (fixed PSD)
+{% if multisphere %}
+# Phase 15 — multisphere clump (replaces the single-sphere PSD). The inline
+# `spheres x y z r ...` list defines one rigid clump; LIGGGHTS Monte-Carlo-
+# integrates its overlap-corrected mass + equivalent radius (ntry).
+{{ clump_block }}
+{% else %}
 # discrete distribution: d = 3.4 / 3.7 / 4.0 mm, mass weights 0.25 / 0.50 / 0.25
 {{ psd_block }}
+{% endif %}
 
 # insert just inside the mesh (r 0.0375 < mesh r 0.04)
-region	bc cylinder z 0. 0. 0.0375 0.003 0.085 units box
+region	bc cylinder z 0. 0. {{ insert_r }} {{ insert_zlo }} {{ insert_ztop }} units box
 fix	ins all insert/pack seed ${SEED} distributiontemplate pdd1 vel constant 0. 0. -0.3 &
 		insert_every once overlapcheck yes all_in yes particles_in_region ${NPART} region bc
 
+{% if multisphere %}
+# Phase 15 — multisphere IS the rigid-body integrator: it advances each clump as
+# a unit, so the single-sphere integrator is dropped entirely (both = LIGGGHTS error).
+fix	integr all multisphere
+{% else %}
 fix	integr all nve/sphere
+{% endif %}
 
 # timestep sanity (Phase-3 exit-criterion check)
 fix	ts all check/timestep/gran 2000 0.1 0.1
@@ -112,7 +149,7 @@ compute	rke all erotate/sphere
 thermo_style	custom step atoms ke c_rke f_ts[1] f_ts[2]
 thermo		2000
 thermo_modify	lost ignore norm no
-dump	dmp all custom ${dumpevery} post/${TAG}_*.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+dump	dmp all custom ${dumpevery} post/${TAG}_*.liggghts id type{% if multisphere %} mol{% endif %} x y z vx vy vz omegax omegay omegaz radius
 dump	dmpstl all mesh/stl ${dumpevery} post/${TAG}_mesh_*.stl
 
 # ---------------------------------------------------------------- stages
@@ -132,4 +169,4 @@ variable ke_relax equal ke
 print	"AUDIT relax: KE = ${ke_relax} J  (heap should be static)"
 
 # final state for measurement (Phase 4)
-write_dump all custom post/${TAG}_final.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+write_dump all custom post/${TAG}_final.liggghts id type{% if multisphere %} mol{% endif %} x y z vx vy vz omegax omegay omegaz radius

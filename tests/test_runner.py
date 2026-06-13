@@ -58,6 +58,36 @@ def test_canonical_rounds_to_stable_value():
     assert runner.canonical({"fric": 0.5000004, "rollfric": 0.1})["fric"] == 0.5
 
 
+# ------------------------------------------------------------- cohesion (Phase 13)
+
+def test_cohesion_absent_preserves_default_hash():
+    # cohed defaults to 0 -> never enters the canonical dict -> legacy hash intact
+    assert "cohed" not in runner.canonical({"fric": 0.5, "rollfric": 0.12})
+    assert runner.params_hash({"fric": 0.5, "rollfric": 0.12}) == "a3338ce730"
+
+
+def test_cohesion_zero_is_cohesionless():
+    assert "cohed" not in runner.canonical({"fric": 0.5, "rollfric": 0.12, "cohed": 0.0})
+
+
+def test_cohesion_present_enters_canon_and_distinct_hash():
+    c = runner.canonical({"fric": 0.5, "rollfric": 0.12, "cohed": 5000})
+    assert c["cohed"] == 5000
+    assert runner.params_hash({"fric": 0.5, "rollfric": 0.12, "cohed": 5000}) != \
+        runner.params_hash({"fric": 0.5, "rollfric": 0.12})
+
+
+def test_drum45_drops_cohesion():
+    # the hold-out is cohesionless wheat by definition — a passed cohed is ignored
+    c = runner.canonical({"fric": 0.4, "rollfric": 0.137, "cohed": 8000}, "drum45")
+    assert "cohed" not in c
+
+
+def test_cohesion_out_of_range_rejected():
+    with pytest.raises(ValueError):
+        runner.canonical({"fric": 0.5, "rollfric": 0.12, "cohed": 99999})
+
+
 @pytest.mark.parametrize("bad", [
     {"fric": 1.5, "rollfric": 0.1},     # fric > 1.0
     {"fric": 0.5, "rollfric": 0.9},     # rollfric > 0.5
