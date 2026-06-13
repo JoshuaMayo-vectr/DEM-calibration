@@ -167,7 +167,7 @@ def build_report(cfg: "optimize.StudyConfig", out_path: Path | None = None, *,
         _add_fig("The friction valley",
                  ui_charts.valley_figure(rows, ui_state.family_anchors(),
                                          cfg.search_bounds),
-                 note="trials colored by loss; amber rings = inside every σ band; "
+                 note="trials colored by loss; blue rings = inside every σ band; "
                       "dotted diamonds = the material card's equivalence family")
         for name, spec in specs.items():
             _add_fig(f"{spec['label']} — trials vs target band",
@@ -178,7 +178,7 @@ def build_report(cfg: "optimize.StudyConfig", out_path: Path | None = None, *,
         if spans:
             _add_fig("Trial timeline",
                      ui_charts.timeline_figure(spans),
-                     note="cyan = cache hit (free), amber = live simulation, "
+                     note="teal = cache hit (free), blue = live simulation, "
                           "red = failed")
     if best_payload:
         items = []

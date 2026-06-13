@@ -84,8 +84,17 @@ FAIL_PENALTY = 100.0
 # is unconstrained in fric by a single response — exactly what Phase 9 fixes).
 # > 0.8 is outside the plausible wheat literature range. runner.canonical
 # still validates against the full RANGES.
-SEARCH_BOUNDS = {"fric": (0.20, 0.80), "rollfric": (0.05, 0.25), "rest": (0.30, 0.70)}
-DIMS = ("fric", "rollfric", "rest")   # search dimensions, in display order
+SEARCH_BOUNDS = {"fric": (0.20, 0.80), "rollfric": (0.05, 0.25), "rest": (0.30, 0.70),
+                 # Phase 12 — particle-wall friction, opt-in. Defaults mirror the
+                 # particle-particle boxes; a study only searches these when its
+                 # config names them in search_bounds (else canonical() mirrors).
+                 "fricpw": (0.20, 0.80), "rollfricpw": (0.05, 0.25)}
+# The full set a study MAY search, in display order. A config picks a subset:
+# REQUIRED_DIMS are always present (default study = exactly these), the wall
+# dims (fricpw/rollfricpw) are optional Phase-12 additions.
+SEARCHABLE_DIMS = ("fric", "rollfric", "rest", "fricpw", "rollfricpw")
+REQUIRED_DIMS = ("fric", "rollfric", "rest")
+DIMS = REQUIRED_DIMS                   # default-study search dimensions
 
 # Convergence-plateau reference: per-response seed-noise floors in sigma units.
 # AoR: 0.37 deg median aor_std (Phase 7). Drum: set from the M2 5-seed study.
@@ -263,11 +272,19 @@ def load_config(path: Path) -> StudyConfig:
         raise ValueError("no response enabled — nothing to calibrate")
 
     bounds_raw = raw["search_bounds"]
-    if set(bounds_raw) != set(DIMS):
-        raise ValueError(f"search_bounds must cover exactly {DIMS} (got {sorted(bounds_raw)})")
+    unknown = set(bounds_raw) - set(SEARCHABLE_DIMS)
+    if unknown:
+        raise ValueError(f"search_bounds has unknown dimension(s) {sorted(unknown)} "
+                         f"(searchable: {list(SEARCHABLE_DIMS)})")
+    missing = set(REQUIRED_DIMS) - set(bounds_raw)
+    if missing:
+        raise ValueError(f"search_bounds must cover the base dims {list(REQUIRED_DIMS)} "
+                         f"(missing {sorted(missing)})")
     search_bounds = {}
-    for d, (lo, hi) in bounds_raw.items():
-        lo, hi = float(lo), float(hi)
+    for d in SEARCHABLE_DIMS:           # canonical order, subset of what's given
+        if d not in bounds_raw:
+            continue
+        lo, hi = (float(x) for x in bounds_raw[d])
         rlo, rhi = runner.RANGES[d]
         if not (rlo <= lo < hi <= rhi):
             raise ValueError(f"search_bounds[{d!r}]=({lo}, {hi}) must satisfy "
@@ -345,9 +362,14 @@ def objective_from_result(res: dict, cfg: StudyConfig | None = None) -> float:
 
 
 def params_from_trial(trial: "optuna.Trial", cfg: StudyConfig | None = None) -> dict:
-    """Suggest a runner param dict over the config's search bounds (all 3 dims)."""
+    """Suggest a runner param dict over the config's chosen search dimensions.
+    The default study searches the 3 base dims; a Phase-12 study additionally
+    searches fricpw/rollfricpw if its config names them. Suggestions are ordered
+    by SEARCHABLE_DIMS for a stable display; dims absent from search_bounds are
+    left to canonical()'s mirror-when-absent default."""
     bounds = (cfg or default_config()).search_bounds
-    return {d: trial.suggest_float(d, *bounds[d]) for d in DIMS}
+    return {d: trial.suggest_float(d, *bounds[d])
+            for d in SEARCHABLE_DIMS if d in bounds}
 
 
 def _hash_attr(response: str) -> str:

@@ -1,9 +1,11 @@
 """Phase-10 tests for the drum45 (45-deg inclined drum) response — no LIGGGHTS.
 
 Contracts under test: (1) the shell friction is a FIXED protocol input
-(wheat-acrylic 0.36/0.29), NOT mirrored from the calibrated fric — the
-property that makes the hold-out a genuine test of the particle-particle
-set; (2) drum45 caches/hashes separately from drum and aor, and the legacy
+(wheat-acrylic 0.36/0.29), pinned UNCONDITIONALLY — neither mirrored from the
+calibrated fric nor overridable by a passed fricpw (Phase 12 made wall friction
+a routine calibration output, so honoring it here would let best.json silently
+un-pin the hold-out) — the property that makes the hold-out a genuine test of
+the particle-particle set; (2) drum45 caches/hashes separately from drum and aor, and the legacy
 drum hash is unchanged by the registry addition; (3) the stubbed engine
 round-trips through slab measurement, pruning, side-view rendering, and the
 cache.
@@ -43,11 +45,16 @@ def test_drum45_canonical_has_tilt_and_protocol_knobs_not_lifth():
     assert "lifth" not in c
 
 
-def test_drum45_shell_override_respected_and_hash_relevant():
+def test_drum45_shell_override_ignored_unconditionally():
+    # Phase 12: wall friction is now a routine calibration output (it lands in
+    # best.json), so the hold-out must NOT honor a passed fricpw/rollfricpw —
+    # the published acrylic shell stays pinned, else validate.py would silently
+    # un-pin the validation. (Was "override respected" pre-Phase-12.)
     c = runner.canonical({"fric": 0.5, "rollfric": 0.1, "fricpw": 0.5,
                           "rollfricpw": 0.1}, "drum45")
-    assert c["fricpw"] == 0.5 and c["rollfricpw"] == 0.1
-    assert runner.params_hash({"fric": 0.5, "rollfric": 0.1}, "drum45") != \
+    assert c["fricpw"] == 0.36 and c["rollfricpw"] == 0.29
+    # the hash is identical with or without the passed wall values
+    assert runner.params_hash({"fric": 0.5, "rollfric": 0.1}, "drum45") == \
         runner.params_hash({"fric": 0.5, "rollfric": 0.1, "fricpw": 0.5},
                            "drum45")
 

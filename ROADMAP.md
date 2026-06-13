@@ -21,6 +21,11 @@
 | ⚑  | **Checkpoint 4 — Calibrated set matches reality within tolerance** | ✅ (qualified — family match, see checkpoint row) |
 | 10 | Hold-out validation + material card deliverable | ✅ (qualified — 45°-drum hold-out **PASS at 1.8σ** of the pre-registered 2σ bar: the family predicts the never-calibrated response at measurement precision, but the response is family-degenerate and the quantified drum-length systematic (≈9.5°) exceeds the acceptance band, so this validates the *family*, not point accuracy; `materials/wheat.json` shipped, schema-valid, reproduces from cache) |
 | 11 | Reproducibility & docs (pinned env, one-command rerun) | ⬜ |
+| 12 | Independent particle–wall (boundary) friction | ✅ (qualified — plumbing shipped: `fricpw`/`rollfricpw` are config-selectable search dimensions; identifiability still gated on a wall-sensitive response with a *measured* boundary-friction target) |
+| 13 | Cohesion model (SJKR) | ⬜ |
+| 14 | Configurable contact model + protocol/geometry | ⬜ |
+| ⚑  | **Checkpoint 5 — Configurable physics sufficient, or is shape required?** | ⬜ |
+| 15 | Particle shape (multisphere) | ⬜ |
 
 Legend: ✅ complete · 🟡 in progress · ⬜ not started · ⏸ paused/blocked · ⚑ checkpoint
 
@@ -34,6 +39,7 @@ Checkpoints are **explicit go/no-go decision moments** between phases — not pr
 | **2** | Phase 5 | **Is the simulation credible and the objective trustworthy?** The simulated heap responds plausibly and monotonically to friction changes, the automated angle measurement agrees with manual measurement on rendered output to ±1°, and the seed-to-seed noise floor is below the measured physical spread. | Fix the physics/template or the measurement code. Do **not** start optimizing on an untrusted objective — every downstream phase inherits its errors. |
 | **3** | Phase 7 | **Is the measured target inside the reachable response range, and do ≤ 4 parameters actually matter?** The LHS screen brackets the measured angle of repose, and sensitivity analysis identifies a small set of influential parameters. *(✅ GO 2026-06-12: 27 ± 1.5° bracketed in the interior, 7 in-band of 45; effective dimension 2 — rollfric ≫ fric ≫ rest. No model-form remedy needed.)* | Revisit the contact model (add cohesion, switch rolling-friction variant) or particle-scale assumptions (size scaling, shape via multisphere) before burning optimizer compute on an unreachable target. |
 | **4** | Phase 9 | **Does the best parameter set match all calibrated responses within measurement spread?** Both the static heap response and the second (flow) response are matched simultaneously by a single parameter set. *(✅ qualified PASS 2026-06-12: the representative set fric 0.40 / μ_r 0.137 / e 0.58 matches heap 26.4 ± 0.6° (target 27 ± 1.5) AND drum 38.1 ± 0.2° (target 36.17 ± 3.1) at 5 seeds, bulk density 782 free — but so does the whole valley family (fric 0.25–0.60, μ_r anti-correlated): the drum proved degenerate with the heap (span < 1° along the valley, both cover protocols), so the fallback clause applies — the family is the documented result. The drawdown probe then showed orifice flow rate DOES discriminate (46.3 → 40.0 g/s along the valley, 8× seed noise, Spearman −0.9), but the follow-up literature search found no target tight enough to exploit it (best: soft 40 ± 12 g/s — wider than the family's span): the valley is breakable only by a measured flow rate. See results/phase9-drum/NOTES.md.)* | Add a response, widen parameter ranges, or accept a documented tolerance; only then proceed to validation. If the valley persists, report it honestly — a family of parameter sets with stated equivalence is still a publishable, usable result. |
+| **5** | Phase 14 | **Do the configurable parameter extensions match the new material's responses within spread — or is particle shape (model form) required?** Independent wall friction, cohesion, and contact-model choice, calibrated against discriminating physical data, reproduce the new material's bulk responses. | Invest in multisphere shape (Phase 15); or if faceted/angular shape is first-order, escalate to a polyhedra- and GPU-capable engine (Aspherix / Rocky / EDEM) — the architecture survives the swap (only `templates/` + dump parser change). |
 
 ## Context
 
@@ -382,6 +388,73 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 
 ---
 
+_Phases 0–11 build and validate the pipeline on a single proof-of-concept material (dry, cohesionless, single-sphere). Phases 12–15 are the **physics-extension track** that lifts the assumptions locked during that proof-of-concept so the pipeline can calibrate arbitrary granular materials — **Phase 12 (independent wall friction) is shipped as plumbing** (2026-06-13); 13–15 remain forward-looking. They share one architectural truth — the templated `-var` inputs and the cache-namespaced `params_hash` (Phase 8.5) already anticipate new parameters, so each is plumbing into existing structure, not surgery (Phase 12 confirmed this — the change was config/optimizer/UI wiring, with the templates and cache untouched). And they share one discipline: a new calibrated dimension is worth adding **only if a discriminating physical measurement exists to constrain it** — otherwise it widens the equivalence family rather than localizing a point (the Phase-9 lesson). Phase 12 honoured that discipline by shipping the *capability* while explicitly deferring the *calibration* to a measured wall-friction target._
+
+---
+
+### Phase 12 — Independent particle–wall (boundary) friction *(Tier 1 — cheapest)*
+
+**Goal.** Promote particle–wall friction from a mirrored input to independent calibration dimensions. The template already exposes `FRICPW`/`ROLLFRICPW` (and the drum's `CAPFRIC`/`CAPROLL`) as `-var` flags, currently mirrored to the particle–particle values unless overridden — so this is exposing them to the optimizer search space and config, **not** new template physics. The two-atom-type design (Phase 3) already makes them physically independent.
+
+**Exit criterion.** A study can search `fricpw`/`rollfricpw` as free parameters with their own bounds; results cache under a distinct `params_hash`; calibration against a wall-sensitive response (drum/inclined) constrains them measurably.
+
+**Dependencies.** Phase 8 (optimizer search-space plumbing), Phase 8.5 (config schema).
+
+**Risks.** Wall friction is identifiable only from wall-sensitive responses — adding it to a heap-only objective just enlarges the equivalence family. Pair the new dimensions with a wall-dominated response and a measured boundary-friction target (the carried wheat–acrylic 0.36/0.29 pair was borrowed, not measured — see the Phase-10 open question).
+
+**Lessons learned.** *(plumbing completed 2026-06-13 — `runner.canonical`/`RANGES`, `optimize.py` search-dimension plumbing, `ui.py` Configure tab, tests in `tests/test_runner.py` + `tests/test_runner_drum45.py` + `tests/test_optimize.py`)*
+
+- **It was plumbing, not physics, exactly as forecast.** The templates already drove `FRICPW`/`ROLLFRICPW` as independent `-var` flags (Phase 3's two-atom-type design); the change was to let a study *search* them. Searched dimensions are now a **config-chosen subset of a searchable superset** (`optimize.SEARCHABLE_DIMS`), not a hardcoded tuple: `REQUIRED_DIMS` (fric/rollfric/rest) are always present, `fricpw`/`rollfricpw` are opt-in. `default_config()` keeps exactly the 3 base dims, so the default study and every existing `config.json` are untouched.
+- **The wheat cache survives byte-for-byte** — `params_hash` runs through `canonical()`, which has *always* emitted `fricpw`/`rollfricpw` (mirror-when-absent). A 3-param request hashes identically before and after (pinned by `test_aor_hash_pinned`); only candidates that set *independent* wall values get new hashes — their own cache namespace, which is correct. No re-simulation of the Phase 7–10 baseline.
+- **The hold-out had a latent footgun.** `canonical()` for `drum45` previously honored a passed `fricpw` (`p.get("fricpw", 0.36)`) — harmless while wall friction was never a calibration output, but once it lands in `best.json`, `validate.py` would feed it to the 45° hold-out and silently un-pin the published acrylic shell, corrupting the validation. Fixed by pinning the shell **unconditionally** (0.36/0.29) for `drum45`. The hold-out's wall is a fixed protocol input by definition, not a free knob.
+- **The capability ships; the demonstration does not.** Per the Open-Questions identifiability discipline (the Phase-9 lesson, generalized), searching wall friction without a wall-sensitive response and a *measured* boundary-friction target just widens the equivalence family. The vertical drum's shell *is* particle–wall friction, but Phase 9 found it degenerate with the heap; the 45° drum is wall-dominated but is the hold-out (shell pinned). So the exit-criterion clause "constrains them measurably" is deliberately deferred to the gating dependency named across Phases 12–15: **physical bench data on the target material** (a measured wheat–wall friction pair). When that number exists, the remaining work is mechanical — name `fricpw`/`rollfricpw` in `search_bounds` (UI checkbox or config) and re-run the built optimizer.
+
+---
+
+### Phase 13 — Cohesion model (SJKR) *(Tier 2)*
+
+**Goal.** Add a cohesive contact dimension for materials that are not dry/cohesionless. Append `cohesion sjkr` to the contact-model string (pair_style + every wall fix) and add a `cohesionEnergyDensity` `fix property/global`, exposed as a `cohesion_energy_density` calibration parameter and config field joined to the params hash. Phase 1 clocked SJKR as a two-line toggle costing ~3× runtime — budget accordingly.
+
+**Exit criterion.** A cohesive study runs; the new parameter enters the search space and the params hash (own cache namespace); a cohesion-sensitive response (a heap that would not form without cohesion, or a measured strength) is matched within spread.
+
+**Dependencies.** Phase 12 (parameter-extension pattern), Phase 8.5 (material config).
+
+**Risks.** Cohesion is constrained only by a cohesion-sensitive bench test — without one it is unidentifiable. ~3× runtime re-opens the per-run budget (Phase 3) and may force fewer particles or longer wall limits. The wheat lock (no SJKR — see the Context section) makes this genuinely new, unvalidated physics — re-run the Phase-4 noise floor for cohesive heaps.
+
+**Lessons learned.** _(placeholder)_
+
+---
+
+### Phase 14 — Configurable contact model & protocol/geometry *(Tier 2–3)*
+
+**Goal.** Lift two locked template internals to configuration. (a) **Contact-model variant** — parameterize the model string (Hertz/Hooke; rolling_friction `cdt`/`epsd`/`epsd2`/`epsd3`) as a config-driven jinja variable, with the conditional `property/global` fixes each variant needs (`epsd`/`epsd3` require `coefficientRollingViscousDamping`; `epsd2` does not — Phase 1). (b) **Protocol/geometry** — parameterize the STL generators (`make_*.py`), insertion regions, and the coupled measurement windows and camera framing, so cylinder/drum/orifice dimensions and protocol speeds become per-study.
+
+**Exit criterion.** A study selects a non-`epsd2` rolling model and a non-default geometry from config alone; the default render stays byte-identical to the current static templates (regression-pinned, as Phase 8.5 established); measurement still passes its synthetic-heap accuracy tests on the new geometry.
+
+**Dependencies.** Phase 8.5 (the template-variant rendering + byte-identical-default contract already exists for material inputs), Phase 4 (measurement code that must follow the geometry).
+
+**Risks.** Geometry/protocol knobs were locked **deliberately** (Phase 8.5): lift speed is rate-sensitive (Phase 3) and the meshes/cameras/measurement windows assume the locked geometry — exposing them re-opens validated decisions and couples tightly to the measurement code. Treat protocol speeds as physics-reviewed, not free knobs.
+
+**Lessons learned.** _(placeholder)_
+
+→ **Checkpoint 5**: Configurable physics sufficient, or is shape required? — *(not started; gates whether the expensive Phase 15 is needed — see the Checkpoints table.)*
+
+---
+
+### Phase 15 — Particle shape (multisphere) *(Tier 4 — hardest; partial engine ceiling)*
+
+**Goal.** Replace single spheres with multisphere clumps for materials whose shape governs bulk behaviour beyond what rolling friction can absorb. LIGGGHTS-PUBLIC supports `fix particletemplate/multisphere` (named as the model-form remedy in Phase 9's risks); the work touches insertion, the radial-binning measurement (which assumes spheres), and runtime (clumps are slower), plus a clump-geometry definition to choose/calibrate.
+
+**Exit criterion.** A multisphere study inserts, simulates, renders, and measures end-to-end; a shape-sensitive response is matched that the single-sphere model could not reach (closing the model-form residual quantified in [results/phase10-validation/NOTES.md](results/phase10-validation/NOTES.md)).
+
+**Dependencies.** Phase 14 (template-variant + measurement-follows-geometry infra).
+
+**Risks.** Choosing the representative clump geometry is a research task, not plumbing. **Engine ceiling:** true polyhedra are **not supported in LIGGGHTS-PUBLIC** — if angular faceted shape is first-order, the honest path is a polyhedra- and GPU-capable engine (Aspherix, or commercial Rocky/EDEM); per the architecture note (end of doc) only `templates/` and the dump parser change. Multisphere also multiplies particle-count cost — may force coarse-graining (the Phase-3 upscaling lever, previously not needed).
+
+**Lessons learned.** _(placeholder)_
+
+---
+
 ## Open questions
 
 - ~~**Material choice.**~~ **Resolved (2026-06-11): wheat grain** — dry, cohesionless (no SJKR). See [experiments/ground-truth-wheat-literature.md](experiments/ground-truth-wheat-literature.md).
@@ -395,6 +468,8 @@ Each phase: **Goal · Exit criterion · Dependencies · Risks · Lessons learned
 - **Compute budget.** ~~Changes Phase 6's parallelism design.~~ **Resolved for Phase 6 (2026-06-11): this MacBook, auto-sized concurrency.** The runner sets `jobs = clamp((cpu-2)//2, 1, 4)` (= 4 here, 4 sims × 2 ranks), overridable via `--jobs`/`RUNNER_JOBS`; macOS-only, no cross-platform abstraction. If a beefier box/cloud burst appears for the LHS screen or optimizer, only the `jobs` cap (and a rebuilt binary) change — the driver is otherwise machine-agnostic.
 - ~~**Particle upscaling.**~~ **Resolved (2026-06-11): not needed.** Wheat-scale spheres (3.4–4.0 mm, 4000 particles) run in 2.8–3.9 min un-coarsened — Phase 3 sized the problem and it fits the budget as-is.
 - ~~**μ_r ceiling (from Phase 3, downgraded by Phase 4).**~~ **Resolved (2026-06-12) by the Phase-7 LHS screen.** Sweeping μ_r 0.00–0.25 (widened from the literature 0.15), the 27° target is bracketed *interior* (7 in-band candidates at μ_r 0.12–0.25), not at the ceiling. Rolling friction is the dominant lever and a single sphere needs μ_r ≳ 0.12 to reach 27° (at μ_r < 0.05 even high sliding friction tops out ~17–19°), but the widened range is sufficient — **multisphere is not needed.**
+- **Identifiability of the new calibrated dimensions** *(opened by Phases 12–15)*. Every parameter these phases unlock (wall friction, cohesion, shape) is constrained only by a response sensitive to it — adding a dimension without a discriminating physical target yields a *wider* equivalence family, not a localized point (the Phase-9 degeneracy lesson, generalized). The gating dependency for the whole extension track is **physical bench data on the target material**, not pipeline code.
+- **Engine ceiling for faceted shape and scale** *(opened by Phase 15)*. LIGGGHTS-PUBLIC does multisphere clumps but not true polyhedra, and is CPU-only — if the target material needs faceted particles or particle counts beyond CPU reach, the calibration *methodology* carries over but the *engine* changes to a polyhedra/GPU-capable code (Aspherix / LAMMPS-granular / Rocky / EDEM). Per the architecture note, only `templates/` and the dump parser change.
 
 ## Repository layout
 

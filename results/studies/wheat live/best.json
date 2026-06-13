@@ -1,0 +1,178 @@
+{
+  "study_name": "wheat live",
+  "targets": {
+    "aor": {
+      "target": 27.0,
+      "sigma": 1.5,
+      "weight": 1.0
+    },
+    "drum": {
+      "target": 36.17,
+      "sigma": 3.1,
+      "weight": 1.0
+    }
+  },
+  "n_trials": 16,
+  "best": {
+    "trial": 0,
+    "loss": 3.8686897920237406,
+    "params": {
+      "fric": 0.7577696556902888,
+      "rollfric": 0.11327511091635718,
+      "rest": 0.37356752467083776
+    },
+    "aor": 26.39720319653128,
+    "aor_std": 1.2971441562983248,
+    "drum_aor": 46.917158294771575,
+    "drum_aor_std": 1.5964327589380858,
+    "bulk_density": 742.8831609870726,
+    "n_ok": {
+      "aor": 2,
+      "drum": 2
+    },
+    "hash": "9f7f048e7a",
+    "hash_drum": "f8e11b6f2b",
+    "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/9f7f048e7a/seed49979687"
+  },
+  "target_met": false,
+  "top": [
+    {
+      "trial": 0,
+      "loss": 3.8686897920237406,
+      "params": {
+        "fric": 0.7577696556902888,
+        "rollfric": 0.11327511091635718,
+        "rest": 0.37356752467083776
+      },
+      "aor": 26.39720319653128,
+      "aor_std": 1.2971441562983248,
+      "drum_aor": 46.917158294771575,
+      "drum_aor_std": 1.5964327589380858,
+      "bulk_density": 742.8831609870726,
+      "n_ok": {
+        "aor": 2,
+        "drum": 2
+      },
+      "hash": "9f7f048e7a",
+      "hash_drum": "f8e11b6f2b",
+      "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/9f7f048e7a/seed49979687"
+    },
+    {
+      "trial": 8,
+      "loss": 3.8686897920237406,
+      "params": {
+        "fric": 0.7577696556902888,
+        "rollfric": 0.11327511091635718,
+        "rest": 0.37356752467083776
+      },
+      "aor": 26.39720319653128,
+      "aor_std": 1.2971441562983248,
+      "drum_aor": 46.917158294771575,
+      "drum_aor_std": 1.5964327589380858,
+      "bulk_density": 742.8831609870726,
+      "n_ok": {
+        "aor": 2,
+        "drum": 2
+      },
+      "hash": "9f7f048e7a",
+      "hash_drum": "f8e11b6f2b",
+      "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/9f7f048e7a/seed49979687"
+    },
+    {
+      "trial": 15,
+      "loss": 4.109881983352812,
+      "params": {
+        "fric": 0.6746663874027072,
+        "rollfric": 0.10220769149823863,
+        "rest": 0.3548538244385863
+      },
+      "aor": 28.48662564092465,
+      "aor_std": 1.9602008703254352,
+      "drum_aor": 45.838274490482775,
+      "drum_aor_std": 0.050943939222808154,
+      "bulk_density": 747.2990660767675,
+      "n_ok": {
+        "aor": 2,
+        "drum": 2
+      },
+      "hash": "56dd3252dc",
+      "hash_drum": "8050d7c457",
+      "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/56dd3252dc/seed49979687"
+    },
+    {
+      "trial": 14,
+      "loss": 4.647500853489489,
+      "params": {
+        "fric": 0.8,
+        "rollfric": 0.12921629597827589,
+        "rest": 0.39351695179923496
+      },
+      "aor": 29.112797756473263,
+      "aor_std": 0.7988932190956923,
+      "drum_aor": 46.21080394910601,
+      "drum_aor_std": 0.07835090071932527,
+      "bulk_density": 725.7199985659076,
+      "n_ok": {
+        "aor": 2,
+        "drum": 2
+      },
+      "hash": "a6036163ce",
+      "hash_drum": "387bee8224",
+      "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/a6036163ce/seed49979687"
+    },
+    {
+      "trial": 7,
+      "loss": 4.886425605859012,
+      "params": {
+        "fric": 0.6304721724874482,
+        "rollfric": 0.1435198014438593,
+        "rest": 0.4302338710157511
+      },
+      "aor": 25.562814232618436,
+      "aor_std": 1.1730861756442668,
+      "drum_aor": 48.34773545890771,
+      "drum_aor_std": 0.3990532612861095,
+      "bulk_density": 738.7411101293497,
+      "n_ok": {
+        "aor": 2,
+        "drum": 2
+      },
+      "hash": "7a37a391ef",
+      "hash_drum": "768c8c5496",
+      "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/7a37a391ef/seed49979687"
+    }
+  ],
+  "material": {
+    "name": "maize",
+    "particle_density_kgm3": 1250.0,
+    "psd_mm": [
+      [
+        5.5,
+        0.08
+      ],
+      [
+        6.5,
+        0.22
+      ],
+      [
+        7.0,
+        0.3
+      ],
+      [
+        7.5,
+        0.25
+      ],
+      [
+        8.5,
+        0.15
+      ]
+    ],
+    "youngs_modulus_pa": 9999999.99,
+    "timestep_s": null,
+    "n_particles": 600
+  },
+  "target_aor": 27.0,
+  "sigma": 1.5,
+  "target_drum": 36.17,
+  "sigma_drum": 3.1
+}

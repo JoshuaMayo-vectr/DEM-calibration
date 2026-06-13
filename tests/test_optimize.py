@@ -153,6 +153,26 @@ def test_params_from_trial_suggests_three_dims_in_bounds(study_to_tmp):
     assert optimize.SEARCH_BOUNDS["fric"][1] == 0.80   # widened past the 0.60 edge
 
 
+def test_params_from_trial_searches_wall_friction_when_configured(study_to_tmp):
+    # Phase 12: a config that names fricpw/rollfricpw in search_bounds gets them
+    # suggested as free dims; absent dims are left to canonical()'s mirror.
+    import dataclasses
+    cfg = dataclasses.replace(
+        optimize.default_config(),
+        search_bounds={**optimize.default_config().search_bounds,
+                       "fricpw": (0.20, 0.80), "rollfricpw": (0.05, 0.25)})
+    study = optuna.create_study(direction="minimize")
+    captured = {}
+
+    def obj(trial):
+        p = optimize.params_from_trial(trial, cfg)
+        captured.update(p)
+        return optimize.aor_loss(_synthetic_aor(p))
+
+    study.optimize(obj, n_trials=3)
+    assert set(captured) == {"fric", "rollfric", "rest", "fricpw", "rollfricpw"}
+
+
 def test_make_objective_records_user_attrs(stub_eval, study_to_tmp):
     study = optimize.build_study(sampler="tpe")
     study.optimize(optimize.make_objective(), n_trials=1)
@@ -369,6 +389,43 @@ def test_load_config_rejects_bad_inputs(study_to_tmp):
     optimize.save_config(bad, base)
     with pytest.raises(ValueError, match="no response enabled"):
         optimize.load_config(base)
+
+    # Phase 12: unknown search dimension
+    raw = _json.loads(optimize.save_config(cfg, base).read_text())
+    raw["search_bounds"]["bogusdim"] = [0.1, 0.2]
+    base.write_text(_json.dumps(raw))
+    with pytest.raises(ValueError, match="unknown dimension"):
+        optimize.load_config(base)
+
+    # Phase 12: missing a required base dim
+    raw = _json.loads(optimize.save_config(cfg, base).read_text())
+    del raw["search_bounds"]["rest"]
+    base.write_text(_json.dumps(raw))
+    with pytest.raises(ValueError, match="base dims"):
+        optimize.load_config(base)
+
+    # Phase 12: wall bound outside runner.RANGES
+    raw = _json.loads(optimize.save_config(cfg, base).read_text())
+    raw["search_bounds"]["fricpw"] = [0.0, 0.8]   # lo < runner.RANGES fricpw 0.1
+    base.write_text(_json.dumps(raw))
+    with pytest.raises(ValueError, match="search_bounds"):
+        optimize.load_config(base)
+
+
+def test_config_roundtrip_with_wall_friction_bounds(study_to_tmp):
+    # a Phase-12 wall-enabled config survives save -> load -> save unchanged
+    import dataclasses
+    cfg = dataclasses.replace(
+        optimize.default_config(),
+        search_bounds={**optimize.default_config().search_bounds,
+                       "fricpw": (0.30, 0.70), "rollfricpw": (0.05, 0.20)})
+    p1 = optimize.save_config(cfg, study_to_tmp / "w" / "config.json")
+    loaded = optimize.load_config(p1)
+    assert loaded.search_bounds["fricpw"] == (0.30, 0.70)
+    assert loaded.search_bounds["rollfricpw"] == (0.05, 0.20)
+    # canonical SEARCHABLE_DIMS ordering preserved
+    assert list(loaded.search_bounds) == ["fric", "rollfric", "rest",
+                                          "fricpw", "rollfricpw"]
 
 
 def test_objective_with_custom_cfg(study_to_tmp):

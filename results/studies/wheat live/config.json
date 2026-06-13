@@ -1,0 +1,80 @@
+{
+  "schema_version": 2,
+  "study_name": "wheat live",
+  "outdir": "results/studies/wheat live",
+  "responses": {
+    "aor": {
+      "enabled": true,
+      "target": 27.0,
+      "sigma": 1.5,
+      "weight": 1.0
+    },
+    "drum": {
+      "enabled": true,
+      "target": 36.17,
+      "sigma": 3.1,
+      "weight": 1.0
+    },
+    "drum45": {
+      "enabled": false,
+      "target": 43.65,
+      "sigma": 2.92,
+      "weight": 0.0
+    }
+  },
+  "density": {
+    "weight": 0.0,
+    "target": 780.0,
+    "sigma": 50.0
+  },
+  "search_bounds": {
+    "fric": [
+      0.2,
+      0.8
+    ],
+    "rollfric": [
+      0.05,
+      0.25
+    ],
+    "rest": [
+      0.3,
+      0.7
+    ]
+  },
+  "sampler": "gp",
+  "sampler_seed": 12345,
+  "n_seeds": 2,
+  "trials": 8,
+  "jobs": null,
+  "seed_csv": null,
+  "fail_penalty": 100.0,
+  "material": {
+    "name": "maize",
+    "particle_density_kgm3": 1250.0,
+    "psd_mm": [
+      [
+        5.5,
+        0.08
+      ],
+      [
+        6.5,
+        0.22
+      ],
+      [
+        7.0,
+        0.3
+      ],
+      [
+        7.5,
+        0.25
+      ],
+      [
+        8.5,
+        0.15
+      ]
+    ],
+    "youngs_modulus_pa": 9999999.99,
+    "timestep_s": null,
+    "n_particles": 600
+  }
+}

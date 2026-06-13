@@ -1,4 +1,4 @@
-"""Dark mission-control look for the Phase-8.5 calibration cockpit.
+"""Soft light-pastel look for the Phase-8.5 calibration cockpit.
 
 Pure presentation constants + tiny HTML snippet builders — no Streamlit, no
 state, no calibration logic, so everything here is unit-testable headless and
@@ -10,18 +10,18 @@ report (report.py inlines the same palette). The Streamlit base theme lives in
 import html
 
 PALETTE = {
-    "bg": "#0B1220",        # app background (deep blue-slate)
-    "bg2": "#111A2C",       # sidebar / inputs / expanders
-    "card": "#152238",      # carded surfaces (metrics, gallery tiles)
-    "border": "#22304A",    # card borders + plot grid lines
-    "grid": "#22304A",
-    "text": "#E2E8F0",
-    "muted": "#94A3B8",
-    "accent": "#F59E0B",    # amber — primary actions, best-so-far, highlights
-    "accent2": "#22D3EE",   # cyan — data traces, secondary series
-    "ok": "#34D399",
-    "warn": "#FBBF24",
-    "err": "#F87171",
+    "bg": "#F5F7FA",        # app background — soft cool off-white
+    "bg2": "#ECEFF4",       # sidebar / inputs / expanders / code
+    "card": "#FFFFFF",      # carded surfaces (metrics, gallery tiles)
+    "border": "#DCE2EB",    # card borders
+    "grid": "#E6EAF1",      # plot grid lines (lighter than border)
+    "text": "#2B3344",      # primary text — dark slate, not pure black
+    "muted": "#64748B",     # hints / captions / labels
+    "accent": "#4F73C4",    # dusty steel blue — primary actions, highlights
+    "accent2": "#3FA39A",   # soft teal — data traces, secondary series
+    "ok": "#4E9E72",        # sage green
+    "warn": "#C9912F",      # muted gold
+    "err": "#C96565",       # dusty rose
 }
 
 FONT_STACK = "Inter, -apple-system, 'Segoe UI', sans-serif"
@@ -96,7 +96,7 @@ code, pre, kbd {{ font-family: {MONO_STACK}; }}
 [data-testid="stVerticalBlockBorderWrapper"]:has(.pill-pending) {{ border: 1px solid {_rgba(PALETTE["accent2"], 0.35)}; }}
 [data-testid="stVerticalBlockBorderWrapper"]:has(.pill-run)     {{ border: 1px solid {_rgba(PALETTE["accent"], 0.45)}; }}
 
-/* ---- tabs: amber underline, quieter inactive labels ------------------- */
+/* ---- tabs: blue underline, quieter inactive labels -------------------- */
 [data-testid="stTabs"] [data-baseweb="tab-highlight"] {{ background: {PALETTE["accent"]}; }}
 [data-testid="stTabs"] button[aria-selected="false"] p {{ color: {PALETTE["muted"]}; }}
 

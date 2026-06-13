@@ -33,6 +33,27 @@ def test_canonical_explicit_wall_friction_kept():
     assert c["fricpw"] == 0.3
 
 
+def test_independent_wall_friction_distinct_hash():
+    # Phase 12: an independent wall pair is a different candidate than the
+    # mirrored default -> its own cache namespace.
+    mirrored = runner.params_hash({"fric": 0.5, "rollfric": 0.1})
+    indep = runner.params_hash({"fric": 0.5, "rollfric": 0.1,
+                                "fricpw": 0.3, "rollfricpw": 0.2})
+    assert mirrored != indep
+    # ...but passing the mirror values explicitly collapses back to the default
+    assert mirrored == runner.params_hash(
+        {"fric": 0.5, "rollfric": 0.1, "fricpw": 0.5, "rollfricpw": 0.1})
+
+
+@pytest.mark.parametrize("bad", [
+    {"fric": 0.5, "rollfric": 0.1, "fricpw": 1.5},     # fricpw > 1.0
+    {"fric": 0.5, "rollfric": 0.1, "rollfricpw": 0.9},  # rollfricpw > 0.5
+])
+def test_canonical_rejects_out_of_range_wall_friction(bad):
+    with pytest.raises(ValueError):
+        runner.canonical(bad)
+
+
 def test_canonical_rounds_to_stable_value():
     assert runner.canonical({"fric": 0.5000004, "rollfric": 0.1})["fric"] == 0.5
 

@@ -12,7 +12,7 @@ The live view polls the study read-only — the concurrent-SQLite pattern
 optuna-dashboard already proves safe — and the gallery surfaces the
 snapshot/fit artifacts every trial dir has carried since Phase 5/6.
 
-Premium layer (2026-06): dark mission-control theme (ui_theme), interactive
+Premium layer (2026-06): soft light-pastel theme (ui_theme), interactive
 plotly charts incl. the valley map with the equivalence-family overlay
 (ui_charts), filterable gallery cards with a trial-detail dialog (full-res
 images, measured.json, an in-browser 3-D particle viewer over the kept final
@@ -36,7 +36,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from calibration import optimize, runner, ui_charts, ui_state, ui_theme, video  # noqa: E402
 
-st.set_page_config(page_title="DEM calibration", page_icon="🌾", layout="wide")
+st.set_page_config(page_title="DEM calibration", layout="wide")
 st.markdown(f"<style>{ui_theme.CSS}</style>", unsafe_allow_html=True)
 
 POLL_S = 5          # status/gallery/chart poll; trials land every ~4 min — plenty
@@ -261,7 +261,7 @@ def trial_dialog(detail: dict) -> None:
 
 # ------------------------------------------------------------- sidebar
 
-st.sidebar.title("🌾 DEM calibration")
+st.sidebar.title("DEM calibration")
 studies = ui_state.list_studies()
 names = [s["name"] for s in studies]
 
@@ -447,13 +447,38 @@ with tab_cfg:
         st.markdown("**Search bounds** (clamped to the physical "
                     "`runner.RANGES`; defaults = Phase-9 box)")
         bounds = {}
-        bcols = st.columns(len(optimize.DIMS))
-        for col, d in zip(bcols, optimize.DIMS):
+        bcols = st.columns(len(optimize.REQUIRED_DIMS))
+        for col, d in zip(bcols, optimize.REQUIRED_DIMS):
             rlo, rhi = runner.RANGES[d]
-            lo, hi = cfg.search_bounds[d]
+            lo, hi = cfg.search_bounds.get(d, optimize.SEARCH_BOUNDS[d])
             bounds[d] = col.slider(d, min_value=float(rlo), max_value=float(rhi),
                                    value=(float(lo), float(hi)), step=0.01,
                                    disabled=status["running"])
+
+        # Phase 12 — opt-in particle-wall friction as independent dimensions.
+        # Inside an st.form the checkbox can't live-reveal the sliders, so they
+        # always render; the checkbox decides inclusion at submit (unchecked =>
+        # canonical() mirrors fricpw/rollfricpw to the particle-particle values).
+        wall_dims = ("fricpw", "rollfricpw")
+        wall_on = st.checkbox(
+            "Calibrate particle–wall friction independently "
+            "(`fricpw`/`rollfricpw`) — otherwise mirrored to particle–particle. "
+            "Identifiable only against a wall-sensitive response with a measured "
+            "boundary-friction target.",
+            value=any(d in cfg.search_bounds for d in wall_dims),
+            disabled=status["running"], key="wall_indep")
+        wall_bounds = {}
+        wcols = st.columns(len(wall_dims))
+        for col, d in zip(wcols, wall_dims):
+            rlo, rhi = runner.RANGES[d]
+            lo, hi = cfg.search_bounds.get(d, optimize.SEARCH_BOUNDS[d])
+            wall_bounds[d] = col.slider(
+                d, min_value=float(rlo), max_value=float(rhi),
+                value=(float(lo), float(hi)), step=0.01,
+                disabled=status["running"],
+                help="Only searched when the box above is ticked; ignored otherwise.")
+        if wall_on:
+            bounds.update(wall_bounds)
 
         st.markdown("**Optimizer**")
         ocols = st.columns(5)

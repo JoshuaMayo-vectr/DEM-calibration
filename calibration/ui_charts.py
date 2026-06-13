@@ -4,11 +4,12 @@ Pure presentation: plain lists/dicts in (ui_state extracts them from the
 study/config/files), go.Figure out. No Streamlit, no optuna, no OVITO — every
 builder is unit-testable headless from literal fixtures, and the HTML report
 (report.py) reuses these figures verbatim so the UI and the report can never
-drift apart. All figures share the dark mission-control styling via _dark().
+drift apart.
 
 The matplotlib figures in optimize.py (history/contour/valley_compare) remain
 the CLI/report-grade static artifacts; these are their live, interactive
-counterparts built from the same study data.
+counterparts built from the same study data. All figures share the soft
+light-pastel styling via _themed().
 """
 
 from datetime import datetime
@@ -23,15 +24,15 @@ except ImportError:                       # script-style execution
 
 PALETTE = ui_theme.PALETTE
 COLORWAY = [PALETTE["accent2"], PALETTE["accent"], PALETTE["ok"],
-            PALETTE["err"], "#A78BFA", "#F472B6"]
+            PALETTE["err"], "#9E8FD1", "#C58AAE"]   # soft lavender, dusty mauve
 
 
-def _dark(fig: go.Figure, *, height: int = 380, title: str | None = None) -> go.Figure:
-    """Shared dark layout: transparent backgrounds (the app/report bg shows
-    through), palette-matched grid + fonts. Every builder funnels through here
-    so the cockpit stays visually coherent."""
+def _themed(fig: go.Figure, *, height: int = 380, title: str | None = None) -> go.Figure:
+    """Shared light-pastel layout: transparent backgrounds (the app/report bg
+    shows through), palette-matched grid + fonts. Every builder funnels through
+    here so the cockpit stays visually coherent."""
     fig.update_layout(
-        template="plotly_dark",
+        template="plotly_white",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family=ui_theme.FONT_STACK, size=12, color=PALETTE["text"]),
@@ -142,7 +143,7 @@ def convergence_figure(rows: list[dict], *, noise_floor: float,
             hoverinfo="text"))
     fig.update_yaxes(range=[0, ycap], title_text="loss [σ]")
     fig.update_xaxes(title_text="trial")
-    return _dark(fig, height=height, title="Convergence vs seed-noise floor")
+    return _themed(fig, height=height, title="Convergence vs seed-noise floor")
 
 
 # ------------------------------------------------------------- valley map
@@ -150,7 +151,7 @@ def convergence_figure(rows: list[dict], *, noise_floor: float,
 def valley_figure(rows: list[dict], anchors: list[dict], bounds: dict, *,
                   in_band_loss: float = 1.0, height: int = 380) -> go.Figure:
     """The project's story chart: trials in (fric, rollfric) colored by loss,
-    in-band trials ringed in amber, the material card's equivalence-family
+    in-band trials ringed in blue, the material card's equivalence-family
     anchors overlaid as the dotted valley ridge. Axes are pinned to the search
     bounds so the box, not the data, frames the view."""
     done = [r for r in _completed(rows)
@@ -202,7 +203,7 @@ def valley_figure(rows: list[dict], anchors: list[dict], bounds: dict, *,
         fig.update_yaxes(range=list(bounds["rollfric"]))
     fig.update_xaxes(title_text="fric (sliding)")
     fig.update_yaxes(title_text="rollfric (rolling)")
-    return _dark(fig, height=height, title="Friction valley — search box")
+    return _themed(fig, height=height, title="Friction valley — search box")
 
 
 # ------------------------------------------------------------- response bands
@@ -240,7 +241,7 @@ def response_band_figure(rows: list[dict], spec: dict, *,
             hoverinfo="text"))
     fig.update_xaxes(title_text="trial")
     fig.update_yaxes(title_text=spec["result_key"])
-    return _dark(fig, height=height, title=spec.get("label", spec["result_key"]))
+    return _themed(fig, height=height, title=spec.get("label", spec["result_key"]))
 
 
 # ------------------------------------------------------------- loss breakdown
@@ -286,7 +287,7 @@ def loss_breakdown_figure(rows: list[dict], specs: dict, *,
     fig.update_layout(barmode="stack", bargap=0.35)
     fig.update_xaxes(title_text="trial")
     fig.update_yaxes(title_text="loss term [σ]", range=[0, cap * 1.05])
-    return _dark(fig, height=height, title="Per-response loss breakdown")
+    return _themed(fig, height=height, title="Per-response loss breakdown")
 
 
 # ------------------------------------------------------------- target bullets
@@ -334,7 +335,7 @@ def target_bullet_figure(items: list[dict], *, height: int | None = None) -> go.
                            yref="y domain", x=0.0, y=1.25, showarrow=False,
                            font=dict(size=12, color=PALETTE["muted"]),
                            row=i, col=1)
-    return _dark(fig, height=height, title="Achieved vs target ± σ")
+    return _themed(fig, height=height, title="Achieved vs target ± σ")
 
 
 # ------------------------------------------------------------- PSD preview
@@ -355,7 +356,7 @@ def psd_figure(psd_mm: list, *, name: str = "", height: int = 220) -> go.Figure:
     fig.update_xaxes(title_text="particle diameter [mm]")
     fig.update_yaxes(title_text="mass fraction", range=[0, max(w for _, w in bins) * 1.25])
     title = f"PSD — {name}" if name else "Particle-size distribution"
-    return _dark(fig, height=height, title=title)
+    return _themed(fig, height=height, title=title)
 
 
 # ------------------------------------------------------------- 3D dump viewer
@@ -391,7 +392,7 @@ def dump_scatter3d_figure(df, *, color_by: str = "z",
                                  yaxis={**axis, "title": "y [m]"},
                                  zaxis={**axis, "title": "z [m]"}),
                       scene_camera=dict(eye=dict(x=1.6, y=0.9, z=0.7)))
-    return _dark(fig, height=height)
+    return _themed(fig, height=height)
 
 
 # ------------------------------------------------------------- trial timeline
@@ -415,8 +416,8 @@ def _span_kind(span: dict) -> str:
 
 def timeline_figure(spans: list[dict], *, now: datetime | None = None,
                     height: int | None = None) -> go.Figure:
-    """Horizontal time bars, newest trial on top: cyan = cache hit (instant),
-    amber = live sim, red = failed, grey = still running (bar drawn to `now`).
+    """Horizontal time bars, newest trial on top: teal = cache hit (instant),
+    blue = live sim, red = failed, grey = still running (bar drawn to `now`).
     Makes the machine's work — and the cache's free lunches — visible."""
     now = now or datetime.now()
     spans = sorted(spans, key=lambda s: s["trial"], reverse=True)
@@ -449,4 +450,4 @@ def timeline_figure(spans: list[dict], *, now: datetime | None = None,
         hovertext=texts, hoverinfo="text", showlegend=False))
     fig.update_xaxes(type="date", title_text="wall clock")
     fig.update_yaxes(autorange="reversed", tickfont=dict(size=10))
-    return _dark(fig, height=height, title="Trial timeline — cyan = cache hit, amber = live sim")
+    return _themed(fig, height=height, title="Trial timeline — teal = cache hit, blue = live sim")

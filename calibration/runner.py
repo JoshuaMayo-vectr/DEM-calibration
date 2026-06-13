@@ -165,8 +165,12 @@ RESPONSES = {
 # used per candidate (Phase 4: averaging 2 gives sigma/sqrt(2) ~ 0.6 deg).
 SEEDS = [49979687, 67867967, 86028121, 104395301, 122949823]
 
-# calibration ranges (Phase 7 literature-informed bounds) — validated, not clamped
-RANGES = {"fric": (0.1, 1.0), "rollfric": (0.0, 0.5), "rest": (0.1, 0.9)}
+# calibration ranges (Phase 7 literature-informed bounds) — validated, not clamped.
+# Particle-wall friction (Phase 12) shares the particle-particle ranges: when
+# mirrored (the default) it is in-range by construction; when searched
+# independently the optimizer needs the same physical envelope.
+RANGES = {"fric": (0.1, 1.0), "rollfric": (0.0, 0.5), "rest": (0.1, 0.9),
+          "fricpw": (0.1, 1.0), "rollfricpw": (0.0, 0.5)}
 
 ROUND = 4               # decimals for canonicalization -> stable hashing
 
@@ -452,11 +456,13 @@ def canonical(params: dict, response: str = "aor") -> dict:
     elif response == "drum45":
         # Phase-10 hold-out: at 45 deg the shell material is significant
         # (Sugirbay ANOVA p < 0.001), so the shell pair is a FIXED protocol
-        # input at the published wheat-acrylic values — override the shared
-        # mirror-from-fric defaults above (explicit fricpw/rollfricpw still
-        # win, for sensitivity runs, and stay hash-relevant)
-        out["fricpw"] = float(p.get("fricpw", 0.36))
-        out["rollfricpw"] = float(p.get("rollfricpw", 0.29))
+        # input at the published wheat-acrylic values, pinned UNCONDITIONALLY —
+        # ignore any passed fricpw/rollfricpw. Once Phase-12 made particle-wall
+        # friction a routine calibration output (it lands in best.json), honoring
+        # it here would let validate.py silently un-pin the published shell and
+        # corrupt the hold-out. The shell is not a free knob for this response.
+        out["fricpw"] = 0.36
+        out["rollfricpw"] = 0.29
         out["rotper"] = float(p.get("rotper", 12.0))
         out["capfric"] = float(p.get("capfric", 0.36))
         out["caproll"] = float(p.get("caproll", 0.29))
