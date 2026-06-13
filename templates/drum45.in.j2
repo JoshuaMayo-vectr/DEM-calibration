@@ -1,0 +1,205 @@
+# drum45.in — 45deg-INCLINED rotating-drum dynamic angle-of-repose test
+# (Phase 10 hold-out validation; derived from drum.in, which stays the
+# vertical-drum calibration response).
+#
+# The tilt is realized by TILTING GRAVITY IN THE DRUM FRAME, not the meshes:
+# tilting the apparatus is the same physics as tilting g, and the engine
+# blocks a mesh tilt anyway (region cylinder and primitive walls are
+# axis-aligned only — re-deriving the streamed-insertion region is the
+# Phase-9 over-insertion trap). Both STLs, the rotation axis, the insertion
+# region, and the backstops are reused from drum.in unchanged.
+#
+# Convention (Sugirbay et al. 2022): alpha = 90 deg is the vertical drum
+# (axis horizontal — drum.in); alpha = 45 deg raises the axis 45 deg. With
+# TILT = 90 - alpha, gravity in drum coordinates is
+#     g = 9.81 * (0, -sin(TILT), -cos(TILT))
+# The axial (-y) component presses the bed against the -y cover (the
+# "material side" whose trace Sugirbay digitizes); the in-plane component
+# still drives the x-z flow, so the bed climbs -x and dz/dx < 0 holds.
+# TILT = 0 reproduces drum.in behavior exactly.
+#
+# Hold-out protocol: ACRYLIC drum, alpha = 45 deg, 5 rpm, 50% fill.
+# Target: dynamic AoR 43.65 deg +/- 2.92 deg (Table 1/2; see
+# experiments/ground-truth-wheat-literature.md, "45 deg inclined drum").
+# At 45 deg the shell material is strongly significant (their ANOVA
+# p < 0.001), so FRICPW/ROLLFRICPW are FIXED PROTOCOL INPUTS at the
+# published wheat-acrylic pair (Table 11: 0.36/0.29 — calibrated on their
+# 7-sphere clumps, carried as-is), NEVER mirrored from the calibrated FRIC.
+# In the acrylic drum the shell, back face, and cover are all acrylic, so
+# shell (type 2) and covers (type 3) carry the same pair — only the
+# particle-particle set under test varies.
+#
+# Run (from repo root):
+#   mpirun -np 2 lmp_auto -in templates/drum45.in \
+#       -var TAG dev -var FRIC 0.4001 -var ROLLFRIC 0.1374 -var REST 0.5762 \
+#       -log log.dev
+#
+# Atom types: 1 = particles, 2 = drum shell (rotating mesh, wheat-acrylic),
+# 3 = end covers (CO-ROTATING cap-disk mesh, wheat-acrylic). Frictionless
+# primitive y-planes remain parked just OUTSIDE the cover disks (CAPY) as a
+# containment backstop only. property/global peratomtypepair 3 takes the
+# symmetric 3x3 matrix in row order (1,1) (1,2) (1,3) (2,1) (2,2) (2,3)
+# (3,1) (3,2) (3,3); wall-wall entries are never exercised.
+
+# ---------------------------------------------------------------- variables
+variable FRIC       index 0.40          # mu_s particle-particle  [under test]
+variable FRICPW     index 0.36          # mu_s particle-shell [FIXED protocol input:
+                                        # wheat-acrylic, Sugirbay Table 11 — at 45 deg the
+                                        # shell material is significant; never mirror FRIC]
+variable ROLLFRIC   index 0.12          # mu_r particle-particle, epsd2 [under test]
+variable ROLLFRICPW index 0.29          # mu_r particle-shell [FIXED: wheat-acrylic, ditto]
+variable REST       index 0.50          # restitution             [under test, weak]
+variable CAPFRIC    index 0.36          # mu_s particle-cover, CO-ROTATING cap mesh [FIXED:
+                                        # wheat-acrylic — acrylic drum: covers = shell]
+variable CAPROLL    index 0.29          # mu_r particle-cover [wheat-acrylic, ditto]
+variable HALFL      index 0.0125        # drum mesh half-length [m] — pass 0.025 with the
+                                        # l0.050 meshes + NPART 9200 for the 50 mm
+                                        # length-sensitivity run (M3 add-on)
+variable TILT       index 45.0          # drum-axis tilt from horizontal [deg] = 90 - alpha;
+                                        # 0.0 reproduces the vertical drum (drum.in)
+variable SEED       index 49979687      # insertion seed — the seed-to-seed noise lever
+# (particletemplate + distribution seeds are fixed distinct primes below;
+#  LIGGGHTS requires all five seeds to be distinct.)
+variable TAG        index dev           # output label
+variable ROTPER     index 12.0          # drum rotation period [s] = 5 rpm (published protocol
+                                        # holds at 45 deg; Fr ~ 2.1e-3, rolling regime)
+variable SETTLET    index 0.8           # settle stage duration [s] (streamed insertion)
+variable SPINUP     index 7.0           # discarded spin-up transient [s] — far longer than
+                                        # the vertical drum's 3.0 s: in-plane gravity is
+                                        # sqrt(2) weaker at 45 deg and the M2 smokes showed
+                                        # the slab angle still climbing until ~7 s of
+                                        # rotation (46.8 -> 50.3 deg), flat thereafter
+variable MEASURE    index 6.4           # steady-state measurement window [s] — the 45-deg
+                                        # cover-slab flow is INTERMITTENT (avalanche cycle
+                                        # ~2-3 s, frame spread ~2.4 deg; M2 smoke), so the
+                                        # window must cover >= 2 cycles or the OLS drift
+                                        # guard reads cycle phase as un-steadiness
+variable DUMPDT     index 0.2           # dump frame spacing [s] -> 33 steady frames
+variable NPART      index {{ npart }}          # particles = 50% fill: 0.5*pi*R^2*L * (780/1400) / v_mean
+variable MESH       index templates/meshes/drum_r0.075_l0.025.stl
+variable CMESH      index templates/meshes/drum_caps_r0.075_l0.025.stl
+variable YMOD       index {{ ymod }}         # softened Young's modulus [Pa] (numerical device)
+variable DT         index {{ dt }}        # timestep [s] (paired with YMOD)
+variable GRAVZ      index -1.0          # gravity sign; -1.0 = normal (fault-injection knob —
+                                        # flips BOTH tilted components)
+
+# fixed (non-calibrated) material inputs
+variable POIS       equal 0.25          # Poisson ratio
+variable RHO        equal {{ rho }}          # particle density [kg/m3]
+
+# derived gravity direction (drum frame; fix gravity normalizes the vector)
+variable gy equal v_GRAVZ*sin(v_TILT*PI/180)
+variable gz equal v_GRAVZ*cos(v_TILT*PI/180)
+
+# derived from HALFL (25 mm defaults reproduce drum.in's literals exactly):
+# CAPY — frictionless primitive backstop planes parked 1 mm OUTSIDE the
+# cover disks, unreachable in normal operation; YINS — insertion-region
+# half-extent, must COVER every reachable particle center (HALFL - r_min =
+# HALFL - 0.0017) while staying inside the covers (cf. drum.in's 0.011)
+variable CAPY equal v_HALFL+0.001
+variable YINS equal v_HALFL-0.0015
+
+# derived stage durations — floor(x+0.5) not ceil: ceil() turns FP noise in
+# the division into off-by-one step counts (0.2/8e-6 -> 25001), which breaks
+# the runner's frame-step bookkeeping
+variable settlesteps equal floor(v_SETTLET/v_DT+0.5)
+variable spinsteps   equal floor(v_SPINUP/v_DT+0.5)
+variable meassteps   equal floor(v_MEASURE/v_DT+0.5)
+variable dumpevery   equal floor(v_DUMPDT/v_DT+0.5)
+variable insevery    equal floor(0.1/v_DT+0.5)
+
+# ---------------------------------------------------------------- setup
+atom_style	granular
+atom_modify	map array
+boundary	m m m
+newton		off
+communicate	single vel yes
+units		si
+
+region		reg block -0.085 0.085 -0.06 0.06 -0.085 0.085 units box
+create_box	3 reg
+
+neighbor	0.002 bin
+neigh_modify	delay 0
+
+# ---------------------------------------------------------------- material / contact model
+fix 	m1 all property/global youngsModulus peratomtype ${YMOD} ${YMOD} ${YMOD}
+fix 	m2 all property/global poissonsRatio peratomtype ${POIS} ${POIS} ${POIS}
+fix 	m3 all property/global coefficientRestitution peratomtypepair 3 &
+		${REST} ${REST} ${REST} &
+		${REST} ${REST} ${REST} &
+		${REST} ${REST} ${REST}
+fix 	m4 all property/global coefficientFriction peratomtypepair 3 &
+		${FRIC} ${FRICPW} ${CAPFRIC} &
+		${FRICPW} ${FRICPW} ${FRICPW} &
+		${CAPFRIC} ${FRICPW} ${FRICPW}
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 3 &
+		${ROLLFRIC} ${ROLLFRICPW} ${CAPROLL} &
+		${ROLLFRICPW} ${ROLLFRICPW} ${ROLLFRICPW} &
+		${CAPROLL} ${ROLLFRICPW} ${ROLLFRICPW}
+
+pair_style gran model hertz tangential history rolling_friction epsd2
+pair_coeff	* *
+
+timestep	${DT}
+
+fix		gravi all gravity 9.81 vector 0.0 ${gy} ${gz}
+
+# containment backstop: frictionless-in-effect primitive y-planes parked
+# outside the cover disks (type 3 pair would apply, but they are unreachable)
+fix ycap1 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 3 yplane -${CAPY}
+fix ycap2 all wall/gran model hertz tangential history rolling_friction epsd2 primitive type 3 yplane +${CAPY}
+
+# drum shell (type 2, FRICPW) + co-rotating end covers (type 3, CAPFRIC):
+# two meshes, one wall fix, both rotated in stage 2
+fix drum all mesh/surface file ${MESH} type 2
+fix caps all mesh/surface file ${CMESH} type 3
+fix drumwall all wall/gran model hertz tangential history rolling_friction epsd2 mesh n_meshes 2 meshes drum caps
+
+# ---------------------------------------------------------------- particles (fixed PSD)
+# discrete distribution: d = 3.4 / 3.7 / 4.0 mm, mass weights 0.25 / 0.50 / 0.25
+{{ psd_block }}
+
+# streamed insertion into the drum interior (region/count logic identical to
+# drum.in — the tilted gravity only changes WHERE inserted particles settle,
+# toward the -y cover, not the covering-region arithmetic)
+region	bc cylinder y 0. 0. 0.0735 -${YINS} ${YINS} units box
+fix	ins all insert/pack seed ${SEED} distributiontemplate pdd1 vel constant 0. -0. -0.3 &
+		insert_every ${insevery} overlapcheck yes all_in yes particles_in_region ${NPART} region bc
+
+fix	integr all nve/sphere
+
+# timestep sanity (Phase-3 exit-criterion check)
+fix	ts all check/timestep/gran 2000 0.1 0.1
+
+# ---------------------------------------------------------------- output
+compute	rke all erotate/sphere
+thermo_style	custom step atoms ke c_rke f_ts[1] f_ts[2]
+thermo		2000
+thermo_modify	lost ignore norm no
+dump	dmp all custom ${dumpevery} post/${TAG}_*.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+dump	dmpstl all mesh/stl ${dumpevery} post/${TAG}_mesh_*.stl
+
+# ---------------------------------------------------------------- stages
+# stage 1 — stream in particles and settle to a half-full bed (leaning on
+# the -y cover under the tilted gravity)
+run	${settlesteps}
+unfix	ins
+variable natoms equal atoms
+variable ke_settle equal ke
+print	"AUDIT settle: step ${settlesteps}  atoms = ${natoms} (target ${NPART})  KE = ${ke_settle} J"
+
+# stage 2 — rotate shell AND covers about y at 5 rpm; discard the transient.
+# Sign convention: positive period -> angular velocity +y; the bed climbs the
+# -x side, so the steady surface has dz/dx < 0 (the measurement asserts this).
+fix	rot all move/mesh mesh drum rotate origin 0. 0. 0. axis 0. 1. 0. period ${ROTPER}
+fix	rotc all move/mesh mesh caps rotate origin 0. 0. 0. axis 0. 1. 0. period ${ROTPER}
+run	${spinsteps}
+
+# stage 3 — steady-state window: frames every DUMPDT for the multi-frame fit
+run	${meassteps}
+variable ke_meas equal ke
+print	"AUDIT measure-end: KE = ${ke_meas} J (continuous rolling -> nonzero, no spikes)"
+
+# final state marker (runner/render convention; same content as the last frame)
+write_dump all custom post/${TAG}_final.liggghts id type x y z vx vy vz omegax omegay omegaz radius

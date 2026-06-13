@@ -1,0 +1,490 @@
+LIGGGHTS (Version LIGGGHTS-PUBLIC 3.8.0, compiled 2026-06-11-14:52:41 by joshuamayo, git commit 3d5c00f20519e6bb6eb6756f51f1ad36564e649d)
+# drawdown.in — Parameterized orifice-discharge (drawdown) flow test (Phase-9 probe).
+#
+# Fill the lifted-cylinder geometry over an annular floor whose orifice is
+# blocked by a plug disk; settle; remove the plug; discharge through the
+# orifice. Mass flow rate comes from fix massflow/mesh on a counting disk
+# below the floor (delete_atoms keeps the shrink-wrapped domain bounded —
+# the Phase-5 neighbor-grid lesson). The probe question is DISCRIMINATION
+# along the Phase-8 friction valley, so no physical target is required yet.
+#
+# Inertial orifice flow is a genuinely different regime from the quasi-static
+# heap and the slow-rolling drum — the two responses that proved degenerate
+# for single spheres (results/phase9-drum/NOTES.md, M4).
+#
+# Run (from repo root):
+#   mpirun -np 2 lmp_auto -in templates/drawdown.in \
+#       -var TAG dev -var FRIC 0.4 -var ROLLFRIC 0.12 -var REST 0.5 -log log.dev
+#
+# Atom types: 1 = particles, 2 = walls (cylinder + floor + plug; matrix as aor.in).
+
+# ---------------------------------------------------------------- variables
+variable FRIC       index 0.40          # mu_s particle-particle  [calibration target]
+variable FRICPW     index 0.40          # mu_s particle-wall      [calibration target]
+variable ROLLFRIC   index 0.12          # mu_r particle-particle, epsd2 [target]
+variable ROLLFRICPW index 0.12          # mu_r particle-wall, epsd2     [target]
+variable REST       index 0.50          # restitution             [target, weak]
+variable SEED       index 49979687      # insertion seed
+variable TAG        index dev           # output label
+variable NPART      index 4000          # particles inserted (the aor fill)
+variable MESH       index templates/meshes/cylinder_r0.040_h0.100.stl
+variable FLOORMESH  index templates/meshes/floor_annulus_r0.046_o0.011.stl
+variable PLUGMESH   index templates/meshes/plug_disk_r0.0135.stl
+variable CATCHMESH  index templates/meshes/catch_disk_r0.030.stl
+variable YMOD       index 1.0e7         # softened Young's modulus [Pa]
+variable DT         index 8.0e-6        # timestep [s]
+variable GRAVZ      index -1.0          # gravity z sign (fault-injection knob)
+variable SETTLET    index 0.4           # settle stage [s]
+variable DISCHARGE  index 1.4           # discharge stage [s] (~full drain at D_o 22 mm)
+
+# fixed (non-calibrated) material inputs
+variable POIS       equal 0.25
+variable RHO        equal 1400
+
+variable settlesteps equal floor(v_SETTLET/v_DT+0.5)
+variable opensteps   equal floor(0.09/v_DT+0.5)
+variable dischsteps  equal floor(v_DISCHARGE/v_DT+0.5)-floor(0.09/v_DT+0.5)
+variable dumpevery   equal 25000
+
+# ---------------------------------------------------------------- setup
+atom_style	granular
+atom_modify	map array
+boundary	m m m
+newton		off
+communicate	single vel yes
+units		si
+
+region		reg block -0.14 0.14 -0.14 0.14 -0.05 0.20 units box
+create_box	2 reg
+Created orthogonal box = (-0.14 -0.14 -0.05) to (0.14 0.14 0.2)
+  1 by 2 by 1 MPI processor grid
+
+neighbor	0.002 bin
+neigh_modify	delay 0
+
+# ---------------------------------------------------------------- material / contact model
+fix 	m1 all property/global youngsModulus peratomtype ${YMOD} ${YMOD}
+fix 	m1 all property/global youngsModulus peratomtype 1.0e7 ${YMOD}
+fix 	m1 all property/global youngsModulus peratomtype 1.0e7 1.0e7
+fix 	m2 all property/global poissonsRatio peratomtype ${POIS} ${POIS}
+fix 	m2 all property/global poissonsRatio peratomtype 0.25 ${POIS}
+fix 	m2 all property/global poissonsRatio peratomtype 0.25 0.25
+fix 	m3 all property/global coefficientRestitution peratomtypepair 2 ${REST} ${REST} ${REST} ${REST}
+fix 	m3 all property/global coefficientRestitution peratomtypepair 2 0.5762 ${REST} ${REST} ${REST}
+fix 	m3 all property/global coefficientRestitution peratomtypepair 2 0.5762 0.5762 ${REST} ${REST}
+fix 	m3 all property/global coefficientRestitution peratomtypepair 2 0.5762 0.5762 0.5762 ${REST}
+fix 	m3 all property/global coefficientRestitution peratomtypepair 2 0.5762 0.5762 0.5762 0.5762
+fix 	m4 all property/global coefficientFriction peratomtypepair 2 ${FRIC} ${FRICPW} ${FRICPW} ${FRICPW}
+fix 	m4 all property/global coefficientFriction peratomtypepair 2 0.4001 ${FRICPW} ${FRICPW} ${FRICPW}
+fix 	m4 all property/global coefficientFriction peratomtypepair 2 0.4001 0.4001 ${FRICPW} ${FRICPW}
+fix 	m4 all property/global coefficientFriction peratomtypepair 2 0.4001 0.4001 0.4001 ${FRICPW}
+fix 	m4 all property/global coefficientFriction peratomtypepair 2 0.4001 0.4001 0.4001 0.4001
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 ${ROLLFRIC} ${ROLLFRICPW} ${ROLLFRICPW} ${ROLLFRICPW}
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 0.1374 ${ROLLFRICPW} ${ROLLFRICPW} ${ROLLFRICPW}
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 0.1374 0.1374 ${ROLLFRICPW} ${ROLLFRICPW}
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 0.1374 0.1374 0.1374 ${ROLLFRICPW}
+fix 	m5 all property/global coefficientRollingFriction peratomtypepair 2 0.1374 0.1374 0.1374 0.1374
+
+pair_style gran model hertz tangential history rolling_friction epsd2
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+pair_coeff	* *
+
+timestep	${DT}
+timestep	8.0e-6
+
+fix		gravi all gravity 9.81 vector 0.0 0.0 ${GRAVZ}
+fix		gravi all gravity 9.81 vector 0.0 0.0 -1.0
+
+# cylinder side wall + annular floor + plug: ONE wall fix — LIGGGHTS 3.8
+# supports a single wall/gran of style mesh, so the plug cannot get its own
+# (first smoke run failed on exactly that). The orifice opens by MOVING the
+# plug down out of the flow (fix move/mesh, the aor.in lift pattern) and
+# parking it below the counting plane.
+fix cyl   all mesh/surface file ${MESH} type 2
+fix cyl   all mesh/surface file ../../../../../templates/meshes/cylinder_r0.040_h0.100.stl type 2
+fix floor all mesh/surface file ${FLOORMESH} type 2
+fix floor all mesh/surface file ../../../../../templates/meshes/floor_annulus_r0.046_o0.011.stl type 2
+fix plug  all mesh/surface file ${PLUGMESH} type 2
+fix plug  all mesh/surface file ../../../../../templates/meshes/plug_disk_r0.0135.stl type 2
+fix statwall all wall/gran model hertz tangential history rolling_friction epsd2 mesh n_meshes 3 meshes cyl floor plug
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+
+# counting plane below the orifice — NOT a wall; massflow counts + deletes
+fix catch all mesh/surface file ${CATCHMESH} type 2
+fix catch all mesh/surface file ../../../../../templates/meshes/catch_disk_r0.030.stl type 2
+fix ms all massflow/mesh mesh catch vec_side 0. 0. -1. count once delete_atoms yes
+
+# ---------------------------------------------------------------- particles (fixed PSD)
+fix	pts1 all particletemplate/sphere 15485863 atom_type 1 density constant ${RHO} radius constant 0.0017
+fix	pts1 all particletemplate/sphere 15485863 atom_type 1 density constant 1400 radius constant 0.0017
+fix	pts2 all particletemplate/sphere 15485867 atom_type 1 density constant ${RHO} radius constant 0.00185
+fix	pts2 all particletemplate/sphere 15485867 atom_type 1 density constant 1400 radius constant 0.00185
+fix	pts3 all particletemplate/sphere 32452843 atom_type 1 density constant ${RHO} radius constant 0.0020
+fix	pts3 all particletemplate/sphere 32452843 atom_type 1 density constant 1400 radius constant 0.0020
+fix	pdd1 all particledistribution/discrete 32452867 3 pts1 0.25 pts2 0.50 pts3 0.25
+
+region	bc cylinder z 0. 0. 0.0375 0.004 0.085 units box
+fix	ins all insert/pack seed ${SEED} distributiontemplate pdd1 vel constant 0. 0. -0.3 		insert_every once overlapcheck yes all_in yes particles_in_region ${NPART} region bc
+fix	ins all insert/pack seed 49979687 distributiontemplate pdd1 vel constant 0. 0. -0.3 		insert_every once overlapcheck yes all_in yes particles_in_region ${NPART} region bc
+fix	ins all insert/pack seed 49979687 distributiontemplate pdd1 vel constant 0. 0. -0.3 		insert_every once overlapcheck yes all_in yes particles_in_region 4000 region bc
+
+fix	integr all nve/sphere
+
+# nevery 1000 to match the fine thermo cadence (thermo errors out when a
+# referenced fix computes on an incompatible schedule)
+fix	ts all check/timestep/gran 1000 0.1 0.1
+
+# ---------------------------------------------------------------- output
+# fine-grained thermo (8 ms) is the measurement: f_ms[1] = crossed mass [kg]
+compute	rke all erotate/sphere
+thermo_style	custom step atoms ke f_ms[1] f_ts[1] f_ts[2]
+thermo		1000
+thermo_modify	lost ignore norm no
+dump	dmp all custom ${dumpevery} post/${TAG}_*.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+dump	dmp all custom 25000 post/${TAG}_*.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+dump	dmp all custom 25000 post/dd2e92a3d305_s49979687_*.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+
+# ---------------------------------------------------------------- stages
+# stage 1 — fill and settle over the plugged orifice
+run	${settlesteps}
+run	50000
+Setting up run at Fri Jun 12 15:46:35 2026
+
+INFO: Particle insertion ins: inserting every 0 steps
+Memory usage per processor = 15.7366 Mbytes
+    Step    Atoms         KinEng          ms[1]          ts[1]          ts[2] 
+       0        0              0              0              0              0 
+INFO: Particle insertion ins: inserted 4000 particle templates (mass 1.456074e-01) at step 1
+ - a total of 4000 particle templates (mass 1.456074e-01) inserted so far.
+    1000     4000    0.010426758              0    0.073452075    0.020600207 
+    2000     4000    0.014153578              0    0.073452075    0.021534994 
+    3000     4000    0.017206589              0    0.073452075    0.022302983 
+    4000     4000    0.019691418              0    0.073452075    0.022717973 
+    5000     4000    0.020968912              0    0.073452075    0.023501045 
+    6000     4000    0.020022553              0    0.073452075     0.02378927 
+    7000     4000    0.015624959              0    0.073452075     0.02430587 
+    8000     4000   0.0083409352              0    0.073452075    0.024646937 
+    9000     4000   0.0011536934              0    0.073452075    0.024409125 
+   10000     4000  0.00025980906              0    0.073452075    0.021467293 
+   11000     4000  0.00010554963              0    0.073452075    0.019970549 
+   12000     4000  5.4982534e-05              0    0.073452075    0.020019037 
+   13000     4000  3.0084951e-05              0    0.073452075    0.019559701 
+   14000     4000  1.5481009e-05              0    0.073452075     0.01958727 
+   15000     4000  9.5135936e-06              0    0.073452075    0.017612695 
+   16000     4000  5.7081223e-06              0    0.073452075    0.017294022 
+   17000     4000  4.6470996e-06              0    0.073452075    0.017305851 
+   18000     4000  3.2342565e-06              0    0.073452075    0.016796431 
+   19000     4000  2.2789148e-06              0    0.073452075    0.017973241 
+   20000     4000  1.1025065e-06              0    0.073452075    0.016143457 
+   21000     4000  9.4660223e-07              0    0.073452075    0.015809914 
+   22000     4000  6.4687735e-07              0    0.073452075    0.014410366 
+   23000     4000  4.9905027e-07              0    0.073452075    0.015626646 
+   24000     4000  1.7780954e-07              0    0.073452075     0.01382336 
+   25000     4000  2.1179677e-07              0    0.073452075    0.014452065 
+   26000     4000  1.7132069e-07              0    0.073452075    0.014070601 
+   27000     4000  3.6241824e-07              0    0.073452075    0.016280019 
+   28000     4000   8.524208e-08              0    0.073452075     0.01297205 
+   29000     4000  1.1970511e-07              0    0.073452075    0.013920103 
+   30000     4000  2.1401526e-07              0    0.073452075    0.014202906 
+   31000     4000  2.1077754e-07              0    0.073452075    0.014504407 
+   32000     4000  3.4693596e-07              0    0.073452075    0.016133097 
+   33000     4000  8.6626638e-08              0    0.073452075    0.014653283 
+   34000     4000  1.3573196e-08              0    0.073452075    0.010978767 
+   35000     4000  1.7049382e-08              0    0.073452075    0.011577049 
+   36000     4000  3.7894293e-09              0    0.073452075   0.0098273651 
+   37000     4000  5.0194161e-09              0    0.073452075    0.010092706 
+   38000     4000  7.6827935e-09              0    0.073452075    0.011074219 
+   39000     4000  1.6003653e-08              0    0.073452075    0.012103099 
+   40000     4000  1.2049681e-08              0    0.073452075    0.011794923 
+   41000     4000  2.9275893e-09              0    0.073452075    0.010141083 
+   42000     4000  7.8042778e-10              0    0.073452075   0.0071759239 
+   43000     4000  4.4017529e-10              0    0.073452075   0.0075215774 
+   44000     4000  6.2685792e-10              0    0.073452075    0.008097281 
+   45000     4000  6.6731296e-10              0    0.073452075   0.0087197695 
+   46000     4000  1.2807365e-09              0    0.073452075    0.009381557 
+   47000     4000  2.1930297e-09              0    0.073452075    0.010072797 
+   48000     4000  4.4474681e-09              0    0.073452075    0.010827144 
+   49000     4000  9.0011243e-09              0    0.073452075    0.011641732 
+   50000     4000  1.8198081e-08              0    0.073452075    0.012512233 
+Loop time of 30.698 on 2 procs for 50000 steps with 4000 atoms, finish time Fri Jun 12 15:47:06 2026
+
+
+Pair  time (%) = 17.4617 (56.8821)
+Neigh time (%) = 0.111109 (0.361943)
+Comm  time (%) = 0.602737 (1.96344)
+Outpt time (%) = 0.008829 (0.0287608)
+Other time (%) = 12.5137 (40.7638)
+
+Nlocal:    2000 ave 2007 max 1993 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    374 ave 376 max 372 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    13948 ave 14000 max 13896 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 27896
+Ave neighs/atom = 6.974
+Neighbor list builds = 76
+Dangerous builds = 0
+variable natoms equal atoms
+print	"AUDIT settle: atoms = ${natoms} (target ${NPART})"
+AUDIT settle: atoms = 4000 (target 4000)
+
+# stage 2 — open the orifice: slide the plug down at 0.5 m/s for 0.09 s
+# (parks at z ~ -0.044, below the counting plane), then discharge
+fix	mvplug all move/mesh mesh plug linear 0. 0. -0.5
+run	${opensteps}
+run	11250
+Setting up run at Fri Jun 12 15:47:06 2026
+
+Memory usage per processor = 21.1376 Mbytes
+    Step    Atoms         KinEng          ms[1]          ts[1]          ts[2] 
+   50000     4000  1.8198081e-08              0    0.073452075    0.012512233 
+   51000     4000  3.2330297e-05              0    0.073452075    0.020062303 
+   52000     4000  6.4539731e-05              0    0.073452075    0.020516175 
+   53000     4000   8.162885e-05              0    0.073452075    0.020933117 
+   54000     4000  0.00011023963              0    0.073452075    0.021319268 
+   55000     4000  0.00016448486              0    0.073452075    0.021679314 
+   56000     4000   0.0002397132              0    0.073452075    0.022243685 
+   57000     4000  0.00032882833              0    0.073452075    0.022839429 
+   58000     4000  0.00043687202              0    0.073452075    0.023378811 
+   59000     4000  0.00056089834              0    0.073452075     0.02387257 
+   60000     3981  0.00046209838  0.00072204784    0.073452075    0.024077467 
+   61000     3964  0.00034738587   0.0013478778    0.073452075    0.024354466 
+   61250     3960  0.00031245402   0.0014592696    0.073452075    0.024354466 
+Loop time of 7.70975 on 2 procs for 11250 steps with 3960 atoms, finish time Fri Jun 12 15:47:13 2026
+
+
+Pair  time (%) = 4.47197 (58.004)
+Neigh time (%) = 0.089043 (1.15494)
+Comm  time (%) = 0.138814 (1.8005)
+Outpt time (%) = 0.00019 (0.00246441)
+Other time (%) = 3.00974 (39.0381)
+
+Nlocal:    1980 ave 1984 max 1976 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    374 ave 376 max 372 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    13532.5 ave 13581 max 13484 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 27065
+Ave neighs/atom = 6.8346
+Neighbor list builds = 55
+Dangerous builds = 0
+unfix	mvplug
+run	${dischsteps}
+run	163750
+Setting up run at Fri Jun 12 15:47:13 2026
+
+Memory usage per processor = 21.1376 Mbytes
+    Step    Atoms         KinEng          ms[1]          ts[1]          ts[2] 
+   61250     3960  0.00031245402   0.0014592696    0.073452075    0.024354466 
+   62000     3953  0.00028961458   0.0017025452    0.073452075    0.024390725 
+   63000     3947  0.00031278332    0.001900371    0.073452075    0.024156265 
+   64000     3944  0.00037733725   0.0020117627    0.073452075    0.024203169 
+   65000     3939  0.00043262221   0.0021724579    0.073452075    0.024076761 
+   66000     3933  0.00048860192   0.0023967061    0.073452075    0.024334841 
+   67000     3926  0.00051493515   0.0026859718    0.073452075    0.024314351 
+   68000     3923  0.00061638838   0.0028276395    0.073452075    0.024204087 
+   69000     3913  0.00063609357   0.0032214423    0.073452075    0.024270561 
+   70000     3906  0.00070093553   0.0035214162    0.073452075    0.024371496 
+   71000     3891  0.00063850318   0.0040192159    0.073452075    0.024367785 
+   72000     3880  0.00065755824   0.0043489256    0.073452075    0.024527118 
+   73000     3872  0.00067895202   0.0046586833    0.073452075     0.02450342 
+   74000     3859  0.00064333062   0.0051638779    0.073452075    0.024425066 
+   75000     3853  0.00073072465   0.0053881261    0.073452075     0.02452338 
+   76000     3843  0.00074533263   0.0057828533    0.073452075    0.024510694 
+   77000     3837  0.00083577313   0.0060745079    0.073452075    0.024520042 
+   78000     3821  0.00076753239   0.0065811672    0.073452075    0.024453248 
+   79000     3806  0.00069956376   0.0070994589    0.073452075     0.02465106 
+   80000     3793  0.00067370991   0.0076168264    0.073452075    0.024604212 
+   81000     3782  0.00065927793   0.0080115536    0.073452075    0.024552228 
+   82000     3770  0.00060610755   0.0084033515    0.073452075    0.024490259 
+   83000     3762  0.00060348919   0.0087609481    0.073452075    0.024607211 
+   84000     3752  0.00058772944   0.0090692413    0.073452075    0.024652717 
+   85000     3743  0.00061659359   0.0093784588    0.073452075    0.024311834 
+   86000     3732  0.00061628948   0.0097829699    0.073452075    0.024466283 
+   87000     3719   0.0005885424    0.010262666    0.073452075    0.024562644 
+   88000     3709  0.00057694661    0.010581668    0.073452075    0.024461564 
+   89000     3695  0.00052066351    0.011108279    0.073452075    0.024461342 
+   90000     3686  0.00052395311    0.011391614    0.073452075    0.024541054 
+   91000     3680  0.00053698581    0.011672561    0.073452075    0.024586376 
+   92000     3673  0.00055311692    0.011878706    0.073452075    0.024513159 
+   93000     3664  0.00056744754    0.012234838    0.073452075    0.024516505 
+   94000     3653    0.000553509    0.012566012    0.073452075    0.024406515 
+   95000     3643  0.00051500447    0.013051639    0.073452075    0.024720244 
+   96000     3637  0.00053205436    0.013238756    0.073452075    0.024556791 
+   97000     3629  0.00053461616    0.013513773    0.073452075    0.024383081 
+   98000     3615  0.00045851982    0.013927527    0.073452075    0.024335958 
+   99000     3607  0.00043826823    0.014219182    0.073452075    0.024512696 
+  100000     3601  0.00044301253    0.014491809    0.073452075    0.024356389 
+  101000     3595  0.00048917765    0.014689635    0.073452075    0.024427921 
+  102000     3587  0.00049658781    0.014989609    0.073452075    0.024316877 
+  103000     3576  0.00049680082    0.015319319    0.073452075    0.024342138 
+  104000     3570  0.00055886551    0.015526928    0.073452075    0.024375001 
+  105000     3561  0.00056068071    0.015865497    0.073452075    0.024307685 
+  106000     3556  0.00065294509    0.016026192    0.073452075    0.024239442 
+  107000     3544  0.00066318433    0.016495721    0.073452075    0.024216645 
+  108000     3533   0.0006560609    0.017029727    0.073452075    0.024477464 
+  109000     3520  0.00062210888    0.017442557    0.073452075    0.024410143 
+  110000     3511  0.00065413951    0.017716109    0.073452075    0.024425962 
+  111000     3501  0.00066196584    0.018083489    0.073452075    0.024406147 
+  112000     3489  0.00063704388    0.018531986    0.073452075    0.024483507 
+  113000     3480  0.00064202036    0.018887193    0.073452075    0.024493715 
+  114000     3467  0.00057807641    0.019338079    0.073452075    0.024612324 
+  115000     3457  0.00054270251    0.019710849    0.073452075    0.024421407 
+  116000     3447     0.00054347    0.020048878    0.073452075    0.024468766 
+  117000     3437   0.0005262726     0.02040501    0.073452075    0.024567175 
+  118000     3427  0.00051377564    0.020770926    0.073452075    0.024621408 
+  119000     3416   0.0004622955    0.021192075    0.073452075    0.024300568 
+  120000     3414  0.00056251316    0.021286829    0.073452075    0.024725541 
+  121000     3407  0.00061767834    0.021494438    0.073452075    0.024301185 
+  122000     3396  0.00061457581    0.021907268    0.073452075    0.024318371 
+  123000     3387   0.0006170936    0.022252692    0.073452075    0.024400118 
+  124000     3376   0.0005829821    0.022676771    0.073452075    0.024459479 
+  125000     3366  0.00056832434    0.023052471    0.073452075    0.024519004 
+  126000     3355  0.00051574064    0.023512215    0.073452075    0.024576268 
+  127000     3348  0.00052025076    0.023765275    0.073452075    0.024628537 
+  128000     3333  0.00044274608    0.024221478    0.073452075    0.024576797 
+  129000     3326  0.00044989078     0.02449503    0.073452075    0.024641475 
+  130000     3319   0.0004662041    0.024778365    0.073452075    0.024528605 
+  131000     3311   0.0004747259    0.025014786    0.073452075    0.024579422 
+  132000     3306  0.00053872708    0.025156454    0.073452075    0.024368032 
+  133000     3297   0.0005518581    0.025465672    0.073452075    0.024492658 
+  134000     3288  0.00056158305    0.025820879    0.073452075     0.02415453 
+  135000     3282  0.00061123658    0.026085187    0.073452075     0.02429347 
+  136000     3275  0.00067722005    0.026309435    0.073452075    0.024344321 
+  137000     3265   0.0007031233    0.026702698    0.073452075       0.024441 
+  138000     3253  0.00069055694    0.027178541    0.073452075    0.024441856 
+  139000     3237  0.00062103939    0.027674876    0.073452075    0.024355893 
+  140000     3225  0.00056689275    0.028183924    0.073452075    0.024560665 
+  141000     3213  0.00052262479    0.028607463    0.073452075    0.024505854 
+  142000     3203  0.00050966387    0.028889334    0.073452075    0.024586476 
+  143000     3193  0.00048411295    0.029265033    0.073452075    0.024544829 
+  144000     3185  0.00048125709    0.029658836    0.073452075    0.024503971 
+  145000     3179  0.00050527087    0.029799039    0.073452075     0.02449693 
+  146000     3167  0.00045616716    0.030222578    0.073452075    0.024479341 
+  147000     3163  0.00050949393    0.030400452    0.073452075    0.024513346 
+  148000     3157  0.00054817669    0.030644267    0.073452075    0.024345044 
+  149000     3147  0.00054566572    0.031010183    0.073452075    0.024427969 
+  150000     3138  0.00054785719    0.031330649    0.073452075    0.024349847 
+  151000     3131  0.00058010205    0.031576854    0.073452075    0.024445193 
+  152000     3125  0.00062117386    0.031802567    0.073452075    0.024378433 
+  153000     3114  0.00060475725    0.032226646    0.073452075    0.024433792 
+  154000     3106  0.00062675499    0.032544723    0.073452075    0.024487513 
+  155000     3095  0.00062503257    0.033015176    0.073452075    0.024608412 
+  156000     3083  0.00057379926    0.033455893    0.073452075    0.024606659 
+  157000     3072  0.00054515568    0.033828664    0.073452075    0.024592024 
+  158000     3065  0.00058826005    0.034081723    0.073452075    0.024491151 
+  159000     3058  0.00065108361    0.034324999    0.073452075     0.02431574 
+  160000     3049  0.00066083559    0.034691455    0.073452075    0.024309544 
+  161000     3036   0.0006232632    0.035160443    0.073452075    0.024472463 
+  162000     3027  0.00063221556    0.035552781    0.073452075    0.024459142 
+  163000     3015  0.00060318601    0.035973931    0.073452075    0.024437516 
+  164000     3003  0.00056557784      0.0364346    0.073452075    0.024548614 
+  165000     2993  0.00054831242    0.036755066    0.073452075    0.024456829 
+  166000     2987  0.00060781624    0.036970995    0.073452075    0.024434805 
+  167000     2978  0.00061671237    0.037324738    0.073452075    0.024437556 
+  168000     2968  0.00062991499    0.037698973    0.073452075    0.024493096 
+  169000     2957   0.0006443002    0.038058959    0.073452075    0.024424942 
+  170000     2946  0.00061551273     0.03846347    0.073452075    0.024420176 
+  171000     2932  0.00054148713    0.039005795    0.073452075    0.024403893 
+  172000     2925  0.00056648862    0.039285277    0.073452075    0.024452356 
+  173000     2917  0.00060339203    0.039557364    0.073452075    0.024390492 
+  174000     2904  0.00058373233    0.040045379    0.073452075    0.024498673 
+  175000     2895  0.00060030784    0.040382484    0.073452075    0.024467387 
+  176000     2889  0.00066413491    0.040616516    0.073452075    0.024469361 
+  177000     2876  0.00063204027    0.041074796    0.073452075    0.024387723 
+  178000     2865  0.00060933435    0.041477843    0.073452075    0.024365516 
+  179000     2857  0.00062041875      0.0417876    0.073452075    0.024415652 
+  180000     2846   0.0006035876    0.042219458    0.073452075    0.024431875 
+  181000     2834  0.00057701108    0.042705085    0.073452075    0.024622011 
+  182000     2825  0.00058186583    0.042966464    0.073452075    0.024449622 
+  183000     2819  0.00063968752    0.043219523    0.073452075    0.024507706 
+  184000     2808  0.00063785083    0.043574191    0.073452075    0.024265838 
+  185000     2795  0.00060999558    0.044033395    0.073452075    0.024484295 
+  186000     2784  0.00059751113    0.044462324    0.073452075    0.024597231 
+  187000     2774  0.00060242402    0.044810136    0.073452075    0.024437022 
+  188000     2762  0.00057021658    0.045204864    0.073452075    0.024388411 
+  189000     2754  0.00058779481    0.045506302    0.073452075    0.024267907 
+  190000     2743  0.00059758982    0.045889781    0.073452075    0.024369417 
+  191000     2732  0.00060625473    0.046258086    0.073452075    0.024411569 
+  192000     2721  0.00061005926    0.046644494    0.073452075    0.024372322 
+  193000     2712  0.00062667902    0.047018729    0.073452075    0.024359188 
+  194000     2701  0.00061647247    0.047402748    0.073452075    0.024142592 
+  195000     2690  0.00061952268    0.047815578    0.073452075    0.024352755 
+  196000     2682  0.00064576054    0.048165396    0.073452075    0.024368562 
+  197000     2673  0.00067595162     0.04845705    0.073452075    0.024490671 
+  198000     2665  0.00070788947    0.048775127    0.073452075    0.024312013 
+  199000     2650  0.00066867669    0.049356972    0.073452075    0.024357014 
+  200000     2639   0.0006460219    0.049750775    0.073452075     0.02448666 
+  201000     2625  0.00058305503    0.050305273    0.073452075    0.024471626 
+  202000     2613  0.00053857275    0.050742521    0.073452075    0.024528125 
+  203000     2606  0.00055483503    0.051072771    0.073452075    0.024443967 
+  204000     2593  0.00049546439    0.051456789    0.073452075    0.024416771 
+  205000     2584  0.00047492457    0.051793894    0.073452075    0.024239933 
+  206000     2578  0.00050995066    0.052046953    0.073452075    0.024370965 
+  207000     2568   0.0004843645      0.0523591    0.073452075    0.024466137 
+  208000     2562  0.00050588113    0.052601451    0.073452075     0.02434629 
+  209000     2556  0.00054578096    0.052864295    0.073452075    0.024579023 
+  210000     2545  0.00051620894    0.053223356    0.073452075    0.024207318 
+  211000     2538  0.00053263897    0.053570244    0.073452075    0.024521601 
+  212000     2529  0.00052053658     0.05381352    0.073452075    0.024599268 
+  213000     2520  0.00051990184    0.054140841    0.073452075    0.024440795 
+  214000     2511  0.00050670831     0.05452486    0.073452075    0.024656229 
+  215000     2503  0.00051383114    0.054777919    0.073452075    0.024225355 
+  216000     2497  0.00054640001    0.055089142    0.073452075    0.024282082 
+  217000     2488  0.00056144164    0.055501972    0.073452075    0.024416209 
+  218000     2480  0.00057410138    0.055801946    0.073452075    0.024485807 
+  219000     2469  0.00053871769    0.056100455    0.073452075    0.024206176 
+  220000     2460  0.00054340353    0.056419456    0.073452075    0.024290656 
+  221000     2452  0.00057304013    0.056664197    0.073452075     0.02421215 
+  222000     2440  0.00054785097    0.057105838    0.073452075    0.024226316 
+  223000     2429  0.00052037624    0.057599784    0.073452075    0.024429181 
+  224000     2417  0.00049217963    0.057939278    0.073452075    0.024225752 
+  225000     2408  0.00049408756    0.058277847    0.073452075    0.024359385 
+Loop time of 86.0809 on 2 procs for 163750 steps with 2408 atoms, finish time Fri Jun 12 15:48:39 2026
+
+
+Pair  time (%) = 46.9795 (54.576)
+Neigh time (%) = 1.46745 (1.70473)
+Comm  time (%) = 1.63773 (1.90255)
+Outpt time (%) = 0.034152 (0.0396743)
+Other time (%) = 35.9621 (41.7771)
+
+Nlocal:    1204 ave 1213 max 1195 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Nghost:    203 ave 206 max 200 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+Neighs:    7461.5 ave 7562 max 7361 min
+Histogram: 1 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 14923
+Ave neighs/atom = 6.19726
+Neighbor list builds = 1160
+Dangerous builds = 0
+variable mout equal f_ms[1]
+print	"AUDIT discharge-end: crossed mass = ${mout} kg, atoms left = ${natoms}"
+AUDIT discharge-end: crossed mass = 0.0582778470661638 kg, atoms left = 2408
+
+write_dump all custom post/${TAG}_final.liggghts id type x y z vx vy vz omegax omegay omegaz radius
+write_dump all custom post/dd2e92a3d305_s49979687_final.liggghts id type x y z vx vy vz omegax omegay omegaz radius

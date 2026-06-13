@@ -1,0 +1,45 @@
+{
+  "scenario": "drum45 hold-out: acrylic drum inclined 45 deg, 5 rpm, 50% fill (Sugirbay et al. 2022, never used in calibration)",
+  "target_deg": 43.65,
+  "sigma_deg": 2.92,
+  "sigma_source": "pooled within-group sqrt(MS_within) = sqrt(8.52), Table 2 ANOVA at alpha=45 (16 df) \u2014 same convention as the vertical drum target",
+  "multiple": 2.0,
+  "criterion": "|predicted - 43.65| <= 2.0*sigma_45 = 5.84 deg on the representative set, with n_ok >= 4 of 5 seeds and no steadiness-drift warnings",
+  "anchors": {
+    "representative": {
+      "fric": 0.4001,
+      "rollfric": 0.1374,
+      "rest": 0.5762,
+      "n_seeds": 5,
+      "role": "gating"
+    },
+    "endpoints": [
+      {
+        "fric": 0.2477,
+        "rollfric": 0.2249,
+        "rest": 0.4945,
+        "n_seeds": 2,
+        "role": "informational-discrimination"
+      },
+      {
+        "fric": 0.6,
+        "rollfric": 0.1203,
+        "rest": 0.7,
+        "n_seeds": 2,
+        "role": "informational-discrimination"
+      }
+    ]
+  },
+  "fixed_protocol_inputs": {
+    "wall_friction": "all walls (shell + covers) wheat-acrylic 0.36/0.29 \u2014 Sugirbay Table 11, calibrated on their 7-sphere clumps, carried as fixed input",
+    "rotation": "5 rpm (ROTPER 12 s)",
+    "fill": "50% (NPART 4600)"
+  },
+  "prestated_deviations": [
+    "axial length 25 mm vs published 50 mm \u2014 biases the 45-deg comparison MORE than vertical (bed rests on the cover, trace measured at the cover); bounded by a one-off 50 mm sensitivity run in M3",
+    "single spheres vs 7-sphere clumps \u2014 mu_r absorbs shape effects (locked Phase-3 decision)",
+    "2-5 seeds vs 5 physical reps x 4 frames"
+  ],
+  "prestated_expectation_endpoints": "with all walls pinned to acrylic the 45-deg response is plausibly family-degenerate (like the vertical drum); endpoint separation is informational, not gating",
+  "prestated_date": "2026-06-12"
+}

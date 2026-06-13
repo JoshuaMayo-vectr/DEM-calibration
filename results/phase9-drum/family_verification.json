@@ -1,0 +1,170 @@
+{
+  "params": {
+    "aor": {
+      "fric": 0.4001,
+      "fricpw": 0.4001,
+      "rollfric": 0.1374,
+      "rollfricpw": 0.1374,
+      "rest": 0.5762,
+      "gravz": -1.0,
+      "lifth": 0.055
+    },
+    "drum": {
+      "fric": 0.4001,
+      "fricpw": 0.4001,
+      "rollfric": 0.1374,
+      "rollfricpw": 0.1374,
+      "rest": 0.5762,
+      "gravz": -1.0,
+      "rotper": 12.0,
+      "capfric": 0.36,
+      "caproll": 0.29
+    }
+  },
+  "responses": {
+    "aor": {
+      "aor": 26.385205708716363,
+      "bulk_density": 781.7205823910184,
+      "aor_std": 0.6253089956423877,
+      "n_ok": 5,
+      "per_seed": [
+        {
+          "seed": 49979687,
+          "aor_deg": 27.20084863953316,
+          "bulk_density_kgm3": 781.430330444507,
+          "failed": false
+        },
+        {
+          "seed": 67867967,
+          "aor_deg": 25.760704123851355,
+          "bulk_density_kgm3": 784.7236567222657,
+          "failed": false
+        },
+        {
+          "seed": 86028121,
+          "aor_deg": 25.552338230135884,
+          "bulk_density_kgm3": 783.507308626276,
+          "failed": false
+        },
+        {
+          "seed": 104395301,
+          "aor_deg": 26.695904412289973,
+          "bulk_density_kgm3": 778.6337687123879,
+          "failed": false
+        },
+        {
+          "seed": 122949823,
+          "aor_deg": 26.716233137771436,
+          "bulk_density_kgm3": 780.3078474496556,
+          "failed": false
+        }
+      ],
+      "n_seeds": 5,
+      "seeds": [
+        49979687,
+        67867967,
+        86028121,
+        104395301,
+        122949823
+      ],
+      "params": {
+        "fric": 0.4001,
+        "fricpw": 0.4001,
+        "rollfric": 0.1374,
+        "rollfricpw": 0.1374,
+        "rest": 0.5762,
+        "gravz": -1.0,
+        "lifth": 0.055
+      },
+      "trial_dirs": [
+        "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/2e92a3d305/seed49979687",
+        "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/2e92a3d305/seed67867967",
+        "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/2e92a3d305/seed86028121",
+        "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/2e92a3d305/seed104395301",
+        "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/2e92a3d305/seed122949823"
+      ],
+      "warnings": []
+    },
+    "drum": {
+      "drum_aor": 38.05647118628854,
+      "drum_aor_std": 0.20124838663684683,
+      "drum_frame_std": 0.9692749266989397,
+      "n_ok": 5,
+      "per_seed": [
+        {
+          "seed": 49979687,
+          "drum_aor_deg": 37.78550412254516,
+          "drum_aor_frame_std": 0.9442352906565563,
+          "failed": false
+        },
+        {
+          "seed": 67867967,
+          "drum_aor_deg": 38.01863103775605,
+          "drum_aor_frame_std": 0.9705545811306635,
+          "failed": false
+        },
+        {
+          "seed": 86028121,
+          "drum_aor_deg": 38.20917644304022,
+          "drum_aor_frame_std": 0.913275729574649,
+          "failed": false
+        },
+        {
+          "seed": 104395301,
+          "drum_aor_deg": 38.34916923885736,
+          "drum_aor_frame_std": 1.3836048287235039,
+          "failed": false
+        },
+        {
+          "seed": 122949823,
+          "drum_aor_deg": 37.91987508924391,
+          "drum_aor_frame_std": 0.6347042034093254,
+          "failed": false
+        }
+      ],
+      "n_seeds": 5,
+      "seeds": [
+        49979687,
+        67867967,
+        86028121,
+        104395301,
+        122949823
+      ],
+      "params": {
+        "fric": 0.4001,
+        "fricpw": 0.4001,
+        "rollfric": 0.1374,
+        "rollfricpw": 0.1374,
+        "rest": 0.5762,
+        "gravz": -1.0,
+        "rotper": 12.0,
+        "capfric": 0.36,
+        "caproll": 0.29
+      },
+      "trial_dirs": [
+        "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-79bbcc5aee/seed49979687",
+        "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-79bbcc5aee/seed67867967",
+        "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-79bbcc5aee/seed86028121",
+        "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-79bbcc5aee/seed104395301",
+        "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-79bbcc5aee/seed122949823"
+      ],
+      "warnings": [
+        "angle drifts +1.7 deg across the window \u2014 drum not steady, extend SPINUP"
+      ]
+    }
+  },
+  "n_ok": {
+    "aor": 5,
+    "drum": 5
+  },
+  "n_seeds": 5,
+  "warnings": [
+    "angle drifts +1.7 deg across the window \u2014 drum not steady, extend SPINUP"
+  ],
+  "aor": 26.385205708716363,
+  "aor_std": 0.6253089956423877,
+  "bulk_density": 781.7205823910184,
+  "drum_aor": 38.05647118628854,
+  "drum_aor_std": 0.20124838663684683,
+  "drum_frame_std": 0.9692749266989397
+}

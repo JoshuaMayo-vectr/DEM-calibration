@@ -39,6 +39,15 @@ RADIUS_RANGE: tuple[float, float] = (0.0017, 0.0020)  # m; fixed color scale acr
 TILE_WIDTH: int = 400
 LABEL_HEIGHT: int = 26
 
+# drum framing preset (Phase 9): look straight down the rotation axis (y) so
+# the snapshot IS the x-z cross-section the measurement fits. Fixed framing,
+# same philosophy as the heap preset — never zoom_all.
+DRUM_CAMERA_DIR: tuple[float, float, float] = (0.0, 1.0, 0.0)
+DRUM_CAMERA_POS: tuple[float, float, float] = (0.0, 0.0, 0.0)
+DRUM_ORTHO_FOV: float = 0.085  # m; drum radius 0.075 + margin
+DRUM_STEADY_STEP: int = 475000  # first steady-state frame (settle+spinup steps);
+                                # the runner passes its registry value explicitly
+
 
 # ------------------------------------------------------------ ovito snapshot
 
@@ -57,20 +66,25 @@ def _make_renderer():
     raise RuntimeError(f"no usable OVITO renderer: {last_err}")
 
 
-def _snapshot_ovito(dump_path: Path, out_path: Path, *, size: tuple[int, int]) -> None:
+def _snapshot_ovito(dump_path: Path, out_path: Path, *, size: tuple[int, int],
+                    camera_dir: tuple[float, float, float] = CAMERA_DIR,
+                    camera_pos: tuple[float, float, float] = CAMERA_POS,
+                    fov: float = ORTHO_FOV,
+                    radius_range: tuple[float, float] | None = None) -> None:
     from ovito.io import import_file
     from ovito.modifiers import ColorCodingModifier
     from ovito.vis import Viewport
 
+    rr = radius_range if radius_range is not None else RADIUS_RANGE
     pipeline = import_file(str(dump_path))
     pipeline.modifiers.append(ColorCodingModifier(
         property="Radius",
-        start_value=RADIUS_RANGE[0], end_value=RADIUS_RANGE[1]))
+        start_value=rr[0], end_value=rr[1]))
     pipeline.source.data.cell.vis.render_cell = False
     pipeline.add_to_scene()
     try:  # scene state is process-global — always detach, even on failure
-        vp = Viewport(type=Viewport.Type.Ortho, camera_dir=CAMERA_DIR,
-                      camera_pos=CAMERA_POS, fov=ORTHO_FOV)
+        vp = Viewport(type=Viewport.Type.Ortho, camera_dir=camera_dir,
+                      camera_pos=camera_pos, fov=fov)
         vp.render_image(filename=str(out_path), size=size,
                         renderer=_make_renderer(), background=(1, 1, 1))
     finally:
@@ -79,7 +93,8 @@ def _snapshot_ovito(dump_path: Path, out_path: Path, *, size: tuple[int, int]) -
 
 def _snapshot_matplotlib(dump_path: str | Path, out_path: str | Path, *,
                          size: tuple[int, int] = IMAGE_SIZE,
-                         label: str | None = None) -> Path:
+                         label: str | None = None,
+                         radius_range: tuple[float, float] | None = None) -> Path:
     """Zero-dependency fallback: 3D scatter with the same fixed framing idea."""
     import matplotlib
     matplotlib.use("Agg")
@@ -87,12 +102,13 @@ def _snapshot_matplotlib(dump_path: str | Path, out_path: str | Path, *,
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    rr = radius_range if radius_range is not None else RADIUS_RANGE
     df = measure.read_dump(dump_path)
     dpi = 100
     fig = plt.figure(figsize=(size[0] / dpi, size[1] / dpi), dpi=dpi)
     ax = fig.add_subplot(projection="3d")
     ax.scatter(df["x"], df["y"], df["z"], c=df["radius"], s=2,
-               vmin=RADIUS_RANGE[0], vmax=RADIUS_RANGE[1], cmap="viridis")
+               vmin=rr[0], vmax=rr[1], cmap="viridis")
     ax.set_xlim(-0.14, 0.14)
     ax.set_ylim(-0.14, 0.14)
     ax.set_zlim(0.0, 0.20)
@@ -117,11 +133,17 @@ def _stamp_label(image_path: Path, label: str) -> None:
 def render_snapshot(dump_path: str | Path, out_path: str | Path | None = None, *,
                     size: tuple[int, int] = IMAGE_SIZE,
                     label: str | None = None,
-                    fallback: str = "auto") -> Path:
+                    fallback: str = "auto",
+                    camera_dir: tuple[float, float, float] = CAMERA_DIR,
+                    camera_pos: tuple[float, float, float] = CAMERA_POS,
+                    fov: float = ORTHO_FOV,
+                    radius_range: tuple[float, float] | None = None) -> Path:
     """Render one dump to a PNG, headless. Returns the written path.
 
     fallback: "auto" (matplotlib scatter if OVITO import/render fails),
-    "never" (re-raise), or "force" (skip OVITO entirely).
+    "never" (re-raise), or "force" (skip OVITO entirely). Camera kwargs
+    default to the heap preset; pass the DRUM_* constants for drum trials
+    (the matplotlib fallback keeps the heap framing — degraded but alive).
     """
     dump_path = Path(dump_path)
     if out_path is None:
@@ -130,15 +152,18 @@ def render_snapshot(dump_path: str | Path, out_path: str | Path | None = None, *
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     if fallback == "force":
-        return _snapshot_matplotlib(dump_path, out_path, size=size, label=label)
+        return _snapshot_matplotlib(dump_path, out_path, size=size, label=label,
+                                    radius_range=radius_range)
     try:
-        _snapshot_ovito(dump_path, out_path, size=size)
+        _snapshot_ovito(dump_path, out_path, size=size, camera_dir=camera_dir,
+                        camera_pos=camera_pos, fov=fov, radius_range=radius_range)
     except Exception as err:
         if fallback != "auto":
             raise
         print(f"WARNING: OVITO render failed ({err}); using matplotlib fallback",
               file=sys.stderr)
-        return _snapshot_matplotlib(dump_path, out_path, size=size, label=label)
+        return _snapshot_matplotlib(dump_path, out_path, size=size, label=label,
+                                    radius_range=radius_range)
     if label:
         _stamp_label(out_path, label)
     return out_path
@@ -163,25 +188,89 @@ def _find_final_dump(trial_dir: str | Path) -> Path:
     return max(numbered)[1]
 
 
-def render_trial(trial_dir: str | Path, *, tag: str | None = None) -> dict:
+def render_trial(trial_dir: str | Path, *, tag: str | None = None,
+                 radius_range: tuple[float, float] | None = None,
+                 settle_step: int = 50000) -> dict:
     """The Phase-6 rendering hook: snapshot.png + profile_fit.png per trial.
 
     Finds the final dump, renders trial_dir/snapshot.png, runs the Phase-4
     measurement (bulk density too when the settled pre-lift dump exists) with
     the audit plot routed to trial_dir/profile_fit.png. Returns the measure
-    dict extended with snapshot_path and tag.
+    dict extended with snapshot_path and tag. radius_range/settle_step follow
+    the material (custom PSD/DT move both; defaults = wheat).
     """
     trial_dir = Path(trial_dir)
     final = _find_final_dump(trial_dir)
     if tag is None:
         tag = re.sub(r"_(final|\d+)$", "", final.stem)
-    settled = trial_dir / "post" / f"{tag}_50000.liggghts"
+    settled = trial_dir / "post" / f"{tag}_{settle_step}.liggghts"
 
-    snapshot = render_snapshot(final, trial_dir / "snapshot.png", label=tag)
+    snapshot = render_snapshot(final, trial_dir / "snapshot.png", label=tag,
+                               radius_range=radius_range)
     result = measure.measure_heap(
         final,
         settled_dump=settled if settled.exists() else None,
         plot_path=trial_dir / "profile_fit.png")
+    result["snapshot_path"] = str(snapshot)
+    result["tag"] = tag
+    return result
+
+
+def _steady_frames(trial_dir: Path, tag: str, steady_step: int) -> list[Path]:
+    """Numbered '<tag>_<step>.liggghts' frames with step >= steady_step,
+    sorted by step — the drum measurement window."""
+    post = Path(trial_dir) / "post"
+    frames = []
+    for p in post.glob(f"{tag}_*.liggghts"):
+        m = re.search(r"_(\d+)\.liggghts$", p.name)
+        if m and int(m.group(1)) >= steady_step:
+            frames.append((int(m.group(1)), p))
+    return [p for _, p in sorted(frames)]
+
+
+# Public aliases (Phase 8.5): video.py and ui_state consume these without
+# reaching for underscored names. Same objects, stable spelling.
+find_final_dump = _find_final_dump
+steady_frames = _steady_frames
+
+
+def render_drum_trial(trial_dir: str | Path, *, tag: str | None = None,
+                      steady_step: int = DRUM_STEADY_STEP,
+                      measure_kw: dict | None = None,
+                      side_view: bool = False,
+                      radius_range: tuple[float, float] | None = None) -> dict:
+    """The Phase-9 drum hook: snapshot.png + drum_fit.png per trial.
+
+    Renders the final frame down the drum axis (fixed framing), then runs the
+    multi-frame dynamic-AoR measurement over the steady-state window with the
+    audit plot routed to trial_dir/drum_fit.png. Returns the measure dict
+    extended with snapshot_path and tag (the drum analog of render_trial).
+
+    measure_kw forwards response-specific measurement options (Phase 10:
+    y_slab / target / target_sigma for the 45-deg inclined drum) to
+    measure_drum. side_view additionally renders snapshot_side.png along +x
+    so the axial lean against the -y cover is visible.
+    """
+    trial_dir = Path(trial_dir)
+    final = _find_final_dump(trial_dir)
+    if tag is None:
+        tag = re.sub(r"_(final|\d+)$", "", final.stem)
+    frames = _steady_frames(trial_dir, tag, steady_step)
+    if not frames:
+        raise FileNotFoundError(
+            f"no steady-state frames (step >= {steady_step}) under {trial_dir}/post")
+
+    snapshot = render_snapshot(final, trial_dir / "snapshot.png", label=tag,
+                               camera_dir=DRUM_CAMERA_DIR,
+                               camera_pos=DRUM_CAMERA_POS, fov=DRUM_ORTHO_FOV,
+                               radius_range=radius_range)
+    if side_view:
+        render_snapshot(final, trial_dir / "snapshot_side.png", label=tag,
+                        camera_dir=(1.0, 0.0, 0.0),
+                        camera_pos=DRUM_CAMERA_POS, fov=DRUM_ORTHO_FOV,
+                        radius_range=radius_range)
+    result = measure.measure_drum(frames, plot_path=trial_dir / "drum_fit.png",
+                                  **(measure_kw or {}))
     result["snapshot_path"] = str(snapshot)
     result["tag"] = tag
     return result

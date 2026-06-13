@@ -1,0 +1,52 @@
+{
+  "scenario": "drum45 hold-out: acrylic drum inclined 45 deg, 5 rpm, 50% fill (Sugirbay et al. 2022, never used in calibration)",
+  "target_deg": 43.65,
+  "sigma_deg": 2.92,
+  "tolerance_deg": 5.84,
+  "criterion": "|predicted - 43.65| <= 2.0*sigma_45 = 5.84 deg on the representative set, with n_ok >= 4 of 5 seeds and no steadiness-drift warnings",
+  "representative": {
+    "params": {
+      "fric": 0.4001,
+      "rollfric": 0.1374,
+      "rest": 0.5762
+    },
+    "predicted_deg": 48.92555612070059,
+    "seed_std": 0.20867083792679902,
+    "abs_error_deg": 5.2755561207005925,
+    "n_ok": 5,
+    "n_drift_warnings": 0
+  },
+  "passed": true,
+  "family_span_deg": 0.21397077801102427,
+  "mean_seed_std_deg": 0.5118415354926437,
+  "endpoints_discriminate": false,
+  "per_anchor": [
+    {
+      "fric": 0.4001,
+      "rollfric": 0.1374,
+      "role": "representative",
+      "predicted_deg": 48.92555612070059,
+      "seed_std": 0.20867083792679902,
+      "n_ok": 5,
+      "in_band": true
+    },
+    {
+      "fric": 0.2477,
+      "rollfric": 0.2249,
+      "role": "endpoint",
+      "predicted_deg": 48.71158534268957,
+      "seed_std": 0.59074831910592,
+      "n_ok": 2,
+      "in_band": true
+    },
+    {
+      "fric": 0.6,
+      "rollfric": 0.1203,
+      "role": "endpoint",
+      "predicted_deg": 48.88905245720868,
+      "seed_std": 0.736105449445212,
+      "n_ok": 2,
+      "in_band": true
+    }
+  ]
+}

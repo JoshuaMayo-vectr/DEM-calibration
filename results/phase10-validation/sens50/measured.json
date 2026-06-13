@@ -1,0 +1,20 @@
+{
+  "drum_aor_deg": 39.325588620761934,
+  "drum_aor_frame_std": 2.0578413897798438,
+  "n_frames": 33,
+  "drum_trend_deg": 2.3437088401289894,
+  "warnings": [
+    "angle drifts +2.3 deg across the window (2se 2.3) \u2014 drum not steady, extend SPINUP"
+  ],
+  "geometry": "published 50mm length, NPART 9200, HALFL 0.025",
+  "params": {
+    "fric": 0.4001,
+    "rollfric": 0.1374,
+    "rest": 0.5762
+  },
+  "seed": 49979687,
+  "y_slab": [
+    -0.026,
+    -0.0176
+  ]
+}

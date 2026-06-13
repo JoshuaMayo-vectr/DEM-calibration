@@ -1,0 +1,9 @@
+# Dark mission-control theme for the Phase-8.5 calibration cockpit.
+# Palette mirrors calibration/ui_theme.PALETTE — change both together.
+[theme]
+base = "dark"
+primaryColor = "#F59E0B"
+backgroundColor = "#0B1220"
+secondaryBackgroundColor = "#111A2C"
+textColor = "#E2E8F0"
+font = "sans serif"

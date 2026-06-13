@@ -1,0 +1,190 @@
+{
+  "name": "wheat-dry-single-sphere",
+  "material": "wheat grain, dry, cohesionless (literature ground truth; source experiments used AK58 at ~14% moisture)",
+  "version": "1.0.1",
+  "date": "2026-06-13",
+  "engine": {
+    "code": "LIGGGHTS-PUBLIC",
+    "version": "3.8.0",
+    "build": "lmp_auto from source, arm64 macOS, Open MPI, Boost, USE_VTK=OFF (see ROADMAP Phase 0); responses verified on this build \u2014 re-verify a few seeds after any rebuild"
+  },
+  "contact_model": {
+    "pair_style": "gran model hertz tangential history rolling_friction epsd2",
+    "cohesion": "none (dry wheat is cohesionless at storage moisture)",
+    "particle_shape": "sphere (mu_r absorbs grain-shape effects \u2014 the locked Phase-3 modelling decision)"
+  },
+  "parameters": {
+    "fric": {
+      "value": 0.4001,
+      "role": "calibrated",
+      "description": "particle-particle sliding friction; one member of the equivalence family \u2014 see equivalence_family for the stated uncertainty"
+    },
+    "rollfric": {
+      "value": 0.1374,
+      "role": "calibrated",
+      "description": "particle-particle rolling friction (epsd2); anti-correlated with fric along the family"
+    },
+    "rest": {
+      "value": 0.5762,
+      "role": "calibrated-weak",
+      "description": "restitution \u2014 negligible influence on the calibrated quasi-static/rolling responses (Phase-7 sensitivity: delta 0.02); effectively free within 0.3-0.7"
+    }
+  },
+  "equivalence_family": {
+    "constraint": "fric 0.25-0.60 anti-correlated with rollfric 0.22-0.12 (rest free): every anchor matches BOTH calibrated responses within spread \u2014 a single parameter point is NOT identified by the calibrated responses",
+    "anchors": [
+      {
+        "fric": 0.2477,
+        "rollfric": 0.2249,
+        "aor_deg": 27.14,
+        "drum_aor_deg": 38.17
+      },
+      {
+        "fric": 0.2652,
+        "rollfric": 0.233,
+        "aor_deg": 28.19,
+        "drum_aor_deg": 38.35
+      },
+      {
+        "fric": 0.2955,
+        "rollfric": 0.1622,
+        "aor_deg": 26.12,
+        "drum_aor_deg": 38.02
+      },
+      {
+        "fric": 0.3315,
+        "rollfric": 0.1708,
+        "aor_deg": 26.58,
+        "drum_aor_deg": 38.01
+      },
+      {
+        "fric": 0.3545,
+        "rollfric": 0.1754,
+        "aor_deg": 27.53,
+        "drum_aor_deg": 38.78
+      },
+      {
+        "fric": 0.4001,
+        "rollfric": 0.1374,
+        "aor_deg": 26.48,
+        "drum_aor_deg": 37.9
+      },
+      {
+        "fric": 0.4499,
+        "rollfric": 0.1425,
+        "aor_deg": 27.98,
+        "drum_aor_deg": 38.82
+      },
+      {
+        "fric": 0.5874,
+        "rollfric": 0.1203,
+        "aor_deg": 26.72,
+        "drum_aor_deg": 38.38
+      },
+      {
+        "fric": 0.6,
+        "rollfric": 0.1203,
+        "aor_deg": 26.95,
+        "drum_aor_deg": 38.42
+      }
+    ],
+    "caveat": "the family is breakable only by a measured orifice flow rate (drawdown discriminates 8x seed noise along the family \u2014 Phase-9 probe \u2014 but no literature target is tight enough; a physical measurement at +/-2 g/s would localize a unique point)"
+  },
+  "fixed_inputs": {
+    "particle_density_kgm3": 1400,
+    "psd_mm": {
+      "diameters": [
+        3.4,
+        3.7,
+        4.0
+      ],
+      "mass_weights": [
+        0.25,
+        0.5,
+        0.25
+      ]
+    },
+    "youngs_modulus_pa": 10000000.0,
+    "youngs_modulus_note": "softened 2-3 orders below reality for timestep (standard DEM practice; AoR verified insensitive 1e7-5e7); pair with timestep_s",
+    "poisson_ratio": 0.25,
+    "timestep_s": 8e-06,
+    "wall_acrylic": {
+      "fric": 0.36,
+      "rollfric": 0.29,
+      "source": "Sugirbay et al. 2022 Table 11 (wheat-acrylic, calibrated on their 7-sphere clumps \u2014 carried as a fixed protocol input)"
+    }
+  },
+  "responses": {
+    "aor": {
+      "value_deg": 26.39,
+      "std_deg": 0.63,
+      "n_seeds": 5,
+      "target_deg": 27.0,
+      "target_sigma_deg": 1.5,
+      "protocol": "static AoR, lifted cylinder R 0.040 m / H 0.100 m, 4000 spheres, lift 10 mm/s (method-bound; templates/aor.in)"
+    },
+    "drum": {
+      "value_deg": 38.06,
+      "std_deg": 0.2,
+      "n_seeds": 5,
+      "target_deg": 36.17,
+      "target_sigma_deg": 3.1,
+      "protocol": "dynamic AoR, vertical rotating drum diam. 150 mm x 25 mm, 5 rpm, 50% fill, co-rotating acrylic covers (templates/drum.in; axial length halved vs the published 50 mm \u2014 documented deviation)"
+    },
+    "bulk_density": {
+      "value": 781.7,
+      "calibrated": false,
+      "literature": 780,
+      "note": "falls out of the fixed PSD + particle density with zero calibration \u2014 a free consistency check"
+    }
+  },
+  "validation": {
+    "scenario": "drum45 hold-out: acrylic drum inclined 45 deg, 5 rpm, 50% fill (Sugirbay et al. 2022, never used in calibration)",
+    "measured_deg": 43.65,
+    "sigma_deg": 2.92,
+    "criterion": "|predicted - 43.65| <= 2.0*sigma_45 = 5.84 deg on the representative set, with n_ok >= 4 of 5 seeds and no steadiness-drift warnings",
+    "prestated": true,
+    "predicted_deg": 48.92555612070059,
+    "predicted_std_deg": 0.20867083792679902,
+    "abs_error_deg": 5.2755561207005925,
+    "passed": true,
+    "family_endpoints_discriminate": false,
+    "deviations": [
+      "axial length 25 mm vs published 50 mm \u2014 biases the 45-deg comparison MORE than vertical (bed rests on the cover, trace measured at the cover); bounded by a one-off 50 mm sensitivity run in M3",
+      "single spheres vs 7-sphere clumps \u2014 mu_r absorbs shape effects (locked Phase-3 decision)",
+      "2-5 seeds vs 5 physical reps x 4 frames"
+    ],
+    "verdict_file": "results/phase10-validation/validation_verdict.json"
+  },
+  "evidence": {
+    "ground_truth": "experiments/ground-truth-wheat-literature.md",
+    "family_verification": "results/phase9-drum/family_verification.json",
+    "valley_check": "results/phase9-drum/valley_check.csv",
+    "optimizer_best": "none \u2014 the Phase-9 multi-response optimizer study was cancelled at the M4 gate (drum degenerate with heap); results/phase9-drum/best.json is a tombstone for a test artifact (invalidated 2026-06-13)",
+    "phase9_notes": "results/phase9-drum/NOTES.md",
+    "validation": "results/phase10-validation/",
+    "lhs_screen": "results/phase7-lhs/lhs_results.csv"
+  },
+  "reproduction": {
+    "command": ".venv/bin/python calibration/material_card.py reproduce",
+    "n_seeds": 5,
+    "tolerance": {
+      "aor": 1.0,
+      "drum": 1.0,
+      "bulk_density": 25.0
+    },
+    "note": "tolerances ~= the seed-noise floor: exact on this machine's cache; absorbs compiler/MPI nondeterminism on a fresh build"
+  },
+  "scope": {
+    "valid_for": [
+      "quasi-static and slow-flow bulk behaviour (heaps, slow drums, hopper drawdown at moderate rates)",
+      "wheat-scale spheres at the stated PSD; geometries at the calibration scale (10^3-10^5 particles)"
+    ],
+    "not_calibrated_for": [
+      "bulk density (uncalibrated consistency check only)",
+      "impact/restitution-dominated processes (rest is weakly constrained)",
+      "cohesive or moist material (no cohesion model)",
+      "rate-sensitive responses far from the calibrated protocols (the heap test is strongly lift-speed sensitive)"
+    ]
+  }
+}

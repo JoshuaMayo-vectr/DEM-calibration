@@ -1,0 +1,11 @@
+{
+  "n_points": 9,
+  "flow_span_gs": 6.821034400442123,
+  "seed_noise_gs": 0.8355189051764742,
+  "span_over_noise": 8.163830115850482,
+  "spearman_fric_vs_flow": -0.9,
+  "flow_min_gs": 39.99038046962094,
+  "flow_max_gs": 46.81141487006306,
+  "go": true,
+  "criterion": "span >= 5x seed noise AND |spearman| >= 0.8"
+}

@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dem-calibration/materials/schema.json",
+  "title": "DEM calibrated material card",
+  "description": "A calibrated DEM parameter set as a versioned, evidenced artifact: the values, the contact model and engine they belong to, the responses they were calibrated against, the hold-out validation result, and how to reproduce it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name", "material", "version", "date", "engine", "contact_model",
+    "parameters", "equivalence_family", "fixed_inputs", "responses",
+    "validation", "evidence", "reproduction", "scope"
+  ],
+  "properties": {
+    "name": {"type": "string", "minLength": 1},
+    "material": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "date": {"type": "string", "format": "date"},
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "version", "build"],
+      "properties": {
+        "code": {"type": "string"},
+        "version": {"type": "string"},
+        "build": {"type": "string"}
+      }
+    },
+    "contact_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pair_style", "cohesion", "particle_shape"],
+      "properties": {
+        "pair_style": {"type": "string"},
+        "cohesion": {"type": "string"},
+        "particle_shape": {"type": "string"}
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fric", "rollfric", "rest"],
+      "properties": {
+        "fric": {"$ref": "#/$defs/parameter"},
+        "rollfric": {"$ref": "#/$defs/parameter"},
+        "rest": {"$ref": "#/$defs/parameter"}
+      }
+    },
+    "equivalence_family": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["constraint", "anchors", "caveat"],
+      "properties": {
+        "constraint": {"type": "string"},
+        "anchors": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["fric", "rollfric"],
+            "properties": {
+              "fric": {"type": "number"},
+              "rollfric": {"type": "number"}
+            }
+          }
+        },
+        "caveat": {"type": "string"}
+      }
+    },
+    "fixed_inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "particle_density_kgm3", "psd_mm", "youngs_modulus_pa",
+        "poisson_ratio", "timestep_s", "wall_acrylic"
+      ],
+      "properties": {
+        "particle_density_kgm3": {"type": "number"},
+        "psd_mm": {
+          "type": "object",
+          "required": ["diameters", "mass_weights"],
+          "properties": {
+            "diameters": {"type": "array", "items": {"type": "number"}},
+            "mass_weights": {"type": "array", "items": {"type": "number"}}
+          }
+        },
+        "youngs_modulus_pa": {"type": "number"},
+        "youngs_modulus_note": {"type": "string"},
+        "poisson_ratio": {"type": "number"},
+        "timestep_s": {"type": "number"},
+        "wall_acrylic": {
+          "type": "object",
+          "required": ["fric", "rollfric", "source"],
+          "properties": {
+            "fric": {"type": "number"},
+            "rollfric": {"type": "number"},
+            "source": {"type": "string"}
+          }
+        }
+      }
+    },
+    "responses": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["aor", "drum", "bulk_density"],
+      "properties": {
+        "aor": {"$ref": "#/$defs/response"},
+        "drum": {"$ref": "#/$defs/response"},
+        "bulk_density": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "calibrated", "literature"],
+          "properties": {
+            "value": {"type": "number"},
+            "calibrated": {"const": false},
+            "literature": {"type": "number"},
+            "note": {"type": "string"}
+          }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenario", "measured_deg", "sigma_deg", "criterion", "prestated",
+        "predicted_deg", "predicted_std_deg", "abs_error_deg", "passed",
+        "deviations", "verdict_file"
+      ],
+      "properties": {
+        "scenario": {"type": "string"},
+        "measured_deg": {"type": "number"},
+        "sigma_deg": {"type": "number"},
+        "criterion": {"type": "string"},
+        "prestated": {"type": "boolean"},
+        "predicted_deg": {"type": ["number", "null"]},
+        "predicted_std_deg": {"type": ["number", "null"]},
+        "abs_error_deg": {"type": ["number", "null"]},
+        "passed": {"type": "boolean"},
+        "family_endpoints_discriminate": {"type": ["boolean", "null"]},
+        "deviations": {"type": "array", "items": {"type": "string"}},
+        "verdict_file": {"type": "string"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "reproduction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "n_seeds", "tolerance"],
+      "properties": {
+        "command": {"type": "string"},
+        "n_seeds": {"type": "integer", "minimum": 1},
+        "tolerance": {
+          "type": "object",
+          "required": ["aor", "drum", "bulk_density"],
+          "additionalProperties": {"type": "number"}
+        },
+        "note": {"type": "string"}
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid_for", "not_calibrated_for"],
+      "properties": {
+        "valid_for": {"type": "array", "items": {"type": "string"}},
+        "not_calibrated_for": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  },
+  "$defs": {
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "role"],
+      "properties": {
+        "value": {"type": "number"},
+        "role": {"enum": ["calibrated", "calibrated-weak", "fixed"]},
+        "description": {"type": "string"}
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value_deg", "std_deg", "n_seeds", "target_deg",
+                   "target_sigma_deg", "protocol"],
+      "properties": {
+        "value_deg": {"type": "number"},
+        "std_deg": {"type": "number"},
+        "n_seeds": {"type": "integer", "minimum": 1},
+        "target_deg": {"type": "number"},
+        "target_sigma_deg": {"type": "number"},
+        "protocol": {"type": "string"}
+      }
+    }
+  }
+}

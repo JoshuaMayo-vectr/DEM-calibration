@@ -9,5 +9,29 @@ __pycache__/
 # bulky simulation outputs (dumps); committed evidence is in.* scripts, NOTES.md, log.liggghts
 results/**/post/
 
+# Phase-6 runner cache — auto-generated trial dirs keyed by params hash, not evidence
+results/cache/
+
+# Phase-8 optimizer state — SQLite study + raw log; committed evidence is
+# best.json, the figures and NOTES.md (the study replays from the cache)
+results/phase8-optimizer/study.db
+results/phase8-optimizer/run.log
+
+# Phase-8.5 UI studies — config.json is the replayable source of truth and IS
+# committed; DB/log/pidfile regenerate from it (`optimize.py run --config`)
+results/studies/*/study.db
+results/studies/*/run.log
+results/studies/*/run.pid
+
 # macOS
 .DS_Store
+
+# Phase-8.5 premium artifacts — regenerable: hero videos via `video.py hero`,
+# report via `report.py --config`, progress sidecars are transient
+results/studies/*/video.log
+results/studies/*/hero_*.mp4
+results/studies/*/hero_*.gif
+results/studies/*/report.html
+results/**/*.progress.json
+results/**/video_*.mp4
+results/**/video_*.gif

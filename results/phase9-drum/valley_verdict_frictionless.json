@@ -1,0 +1,16 @@
+{
+  "n_points": 9,
+  "drum_span_deg": 1.1243356990776192,
+  "spearman_fric_vs_drum": 0.13333333333333333,
+  "drum_min": 30.970591423728138,
+  "drum_max": 32.09492712280576,
+  "target_band": [
+    33.07,
+    39.27
+  ],
+  "n_inband_drum": 0,
+  "target_reachable": false,
+  "noise_floor_deg": 0.27,
+  "go": false,
+  "criterion": "span >= 3 deg AND |spearman| >= 0.8 AND band reachable"
+}

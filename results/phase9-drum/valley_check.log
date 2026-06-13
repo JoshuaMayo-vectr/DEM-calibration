@@ -1,0 +1,27 @@
+  fric  rollfric   rest       aor  aor_std  aor_n_ok  drum_aor  drum_aor_std  drum_frame_std  drum_n_ok                                                                          drum_trial
+0.2477    0.2249 0.4945 27.139581 0.365337         2 31.505411      0.031710        1.449658          2 /Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-03d04a1978/seed49979687
+0.2652    0.2330 0.7000 28.190938 0.001016         2 31.881319      0.078633        2.765629          2 /Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-493e339da3/seed49979687
+0.2955    0.1622 0.4414 26.120472 0.326513         2 30.970591      0.028966        1.737690          2 /Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-02c5da0191/seed49979687
+0.3315    0.1708 0.7000 26.578067 0.085317         2 31.761829      0.188049        1.124360          2 /Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-8c5e65d472/seed49979687
+0.3545    0.1754 0.6070 27.533184 0.024102         2 32.094927      0.296554        1.087950          2 /Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-c37ef2a91d/seed49979687
+0.4001    0.1374 0.5762 26.480776 0.720072         2 31.228169      0.202635        1.302401          2 /Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-2aeaf59267/seed49979687
+0.4499    0.1425 0.3053 27.982024 0.525527         2 32.000019      0.286709        1.493801          2 /Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-ba8c42db13/seed49979687
+0.5874    0.1203 0.4523 26.721747 0.695615         2 31.746136      0.160852        1.333763          2 /Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-c9690243e2/seed49979687
+0.6000    0.1203 0.7000 26.946051 0.413813         2 31.585458      0.051748        1.624341          2 /Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum-c65798fc30/seed49979687
+{
+  "n_points": 9,
+  "drum_span_deg": 1.1243356990776192,
+  "spearman_fric_vs_drum": 0.13333333333333333,
+  "drum_min": 30.970591423728138,
+  "drum_max": 32.09492712280576,
+  "target_band": [
+    33.07,
+    39.27
+  ],
+  "n_inband_drum": 0,
+  "target_reachable": false,
+  "noise_floor_deg": 0.27,
+  "go": false,
+  "criterion": "span >= 3 deg AND |spearman| >= 0.8 AND band reachable"
+}
+VERDICT: NO-GO — see ROADMAP Phase-9 risk path

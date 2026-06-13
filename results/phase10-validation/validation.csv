@@ -1,0 +1,4 @@
+fric,rollfric,rest,role,n_seeds,drum45_aor,drum45_aor_std,drum45_frame_std,n_ok,n_drift_warnings,trial
+0.4001,0.1374,0.5762,representative,5,48.92555612070059,0.20867083792679902,1.9963216105283295,5,0,/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum45-f1808757d1/seed49979687
+0.2477,0.2249,0.4945,endpoint,2,48.71158534268957,0.59074831910592,2.214215243666171,2,0,/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum45-0f7b761463/seed49979687
+0.6,0.1203,0.7,endpoint,2,48.88905245720868,0.736105449445212,1.9672354396923533,2,0,/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/drum45-12f55ccf30/seed49979687

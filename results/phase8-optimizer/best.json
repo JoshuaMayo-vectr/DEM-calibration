@@ -1,0 +1,99 @@
+{
+  "study_name": "aor-wheat-3d",
+  "target_aor": 27.0,
+  "sigma": 1.5,
+  "n_trials": 40,
+  "best": {
+    "trial": 31,
+    "loss": 0.008000000000000304,
+    "params": {
+      "fric": 0.21123602487042176,
+      "rollfric": 0.22538963874131485,
+      "rest": 0.35168473016935814
+    },
+    "aor": 26.988,
+    "aor_std": 0.4,
+    "bulk_density": 780.0,
+    "n_ok": 2,
+    "hash": "a0c245da35",
+    "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/a0c245da35/seed49979687"
+  },
+  "target_met": true,
+  "top": [
+    {
+      "trial": 31,
+      "loss": 0.008000000000000304,
+      "params": {
+        "fric": 0.21123602487042176,
+        "rollfric": 0.22538963874131485,
+        "rest": 0.35168473016935814
+      },
+      "aor": 26.988,
+      "aor_std": 0.4,
+      "bulk_density": 780.0,
+      "n_ok": 2,
+      "hash": "a0c245da35",
+      "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/a0c245da35/seed49979687"
+    },
+    {
+      "trial": 23,
+      "loss": 0.010666666666665492,
+      "params": {
+        "fric": 0.2078829079591081,
+        "rollfric": 0.22697678036936322,
+        "rest": 0.32279141955151713
+      },
+      "aor": 27.016,
+      "aor_std": 0.4,
+      "bulk_density": 780.0,
+      "n_ok": 2,
+      "hash": "e80fb33b75",
+      "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/e80fb33b75/seed49979687"
+    },
+    {
+      "trial": 16,
+      "loss": 0.025333333333333503,
+      "params": {
+        "fric": 0.5072363659150543,
+        "rollfric": 0.10752858286882769,
+        "rest": 0.5165357677709912
+      },
+      "aor": 27.038,
+      "aor_std": 0.4,
+      "bulk_density": 780.0,
+      "n_ok": 2,
+      "hash": "d44a7fbb7b",
+      "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/d44a7fbb7b/seed49979687"
+    },
+    {
+      "trial": 37,
+      "loss": 0.04133333333333411,
+      "params": {
+        "fric": 0.2581652774903878,
+        "rollfric": 0.20608847451849638,
+        "rest": 0.3854702523691365
+      },
+      "aor": 26.938,
+      "aor_std": 0.4,
+      "bulk_density": 780.0,
+      "n_ok": 2,
+      "hash": "c2c3b73689",
+      "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/c2c3b73689/seed49979687"
+    },
+    {
+      "trial": 24,
+      "loss": 0.07066666666666777,
+      "params": {
+        "fric": 0.2044253272525206,
+        "rollfric": 0.22933111404146836,
+        "rest": 0.3030809379483516
+      },
+      "aor": 27.106,
+      "aor_std": 0.4,
+      "bulk_density": 780.0,
+      "n_ok": 2,
+      "hash": "e12e975260",
+      "trial_dir": "/Users/joshuamayo/Dev/09 DEM-calibration/results/cache/e12e975260/seed49979687"
+    }
+  ]
+}

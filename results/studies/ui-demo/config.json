@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "study_name": "ui-demo",
+  "outdir": "results/studies/ui-demo",
+  "responses": {
+    "aor": {
+      "enabled": true,
+      "target": 27.0,
+      "sigma": 1.5,
+      "weight": 1.0
+    },
+    "drum": {
+      "enabled": true,
+      "target": 36.17,
+      "sigma": 3.1,
+      "weight": 1.0
+    }
+  },
+  "density": {
+    "weight": 0.0,
+    "target": 780.0,
+    "sigma": 50.0
+  },
+  "search_bounds": {
+    "fric": [
+      0.2,
+      0.8
+    ],
+    "rollfric": [
+      0.05,
+      0.25
+    ],
+    "rest": [
+      0.3,
+      0.7
+    ]
+  },
+  "sampler": "gp",
+  "sampler_seed": 12345,
+  "n_seeds": 2,
+  "trials": 9,
+  "jobs": null,
+  "seed_csv": "results/phase9-drum/valley_check.csv",
+  "fail_penalty": 100.0
+}

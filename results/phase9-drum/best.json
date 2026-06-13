@@ -1,0 +1,11 @@
+{
+  "invalidated": true,
+  "invalidated_date": "2026-06-13",
+  "reason": "This file was never a real optimizer output. The Phase-9 multi-response optimization was cancelled at the M4 gate (flat combined loss along the valley - see NOTES.md), so no study.db, figures, or best.json were ever produced here. The content this file previously held (best trial fric 0.617 / rollfric 0.063, n_trials 80, aor_std 0.4, drum_aor_std 0.6, bulk_density 780.0) was a TEST ARTIFACT: tests/test_optimize.py ran its synthetic-surface study and optimize.write_best's def-time default-arg binding ignored the monkeypatched output path, writing the stub result into the repo. The fric-0.617 'optimum' is the synthetic stub surfaces' joint optimum, not a simulation result.",
+  "bug_fix": "optimize.py paths now resolve at call time via default_config() (Phase 8.5, 2026-06-13); regression test: tests/test_optimize.py::test_write_best_resolves_monkeypatched_path_at_call_time; sentinel: tests/test_optimize.py::test_phase9_best_json_untouched_by_suite.",
+  "real_phase9_evidence": {
+    "family_verification": "results/phase9-drum/family_verification.json (representative member fric 0.4001 / rollfric 0.1374 / rest 0.5762 at 5 seeds)",
+    "valley_check": "results/phase9-drum/valley_check.csv (9 anchors, both responses - the equivalence family)",
+    "run_record": "results/phase9-drum/NOTES.md"
+  }
+}

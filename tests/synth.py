@@ -190,6 +190,114 @@ def write_dump(df: pd.DataFrame, path, *, timestep: int = 0):
     return path
 
 
+def _chord_offset_for_fill(fill_frac: float, drum_r: float) -> float:
+    """Signed distance from the drum center to the surface chord such that
+    the circular-segment area below it equals fill_frac of the cross-section.
+    Bisection (no scipy): fraction below a line at distance d above center is
+    1 - [R^2 acos(d/R) - d sqrt(R^2-d^2)] / (pi R^2)."""
+    def frac_below(d):
+        seg = drum_r**2 * np.arccos(np.clip(d / drum_r, -1, 1)) \
+            - d * np.sqrt(max(drum_r**2 - d**2, 0.0))
+        return 1.0 - seg / (np.pi * drum_r**2)
+
+    lo, hi = -drum_r, drum_r
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if frac_below(mid) < fill_frac:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def make_drum_bed(
+    angle_deg: float,
+    rng: np.random.Generator,
+    drum_r: float = 0.075,
+    length: float = 0.025,
+    fill_frac: float = 0.5,
+    particle_r: float = PARTICLE_R,
+    jitter: float = 0.5,
+    s_amp: float = 0.0,
+    slope_sign: float = -1.0,
+    packing: float = 0.58,
+    axial_slope: float = 0.0,
+    y_range: tuple[float, float] | None = None,
+) -> pd.DataFrame:
+    """Drum cross-section bed (axis = y) with a flat surface at angle_deg.
+
+    The bed is the part of the circle x^2 + z^2 <= drum_r^2 below the line
+    z = slope_sign*tan(angle)*x + z0, with z0 set by bisection so the
+    circular-segment area fraction equals fill_frac. slope_sign=-1 matches
+    the template's rotation convention (bed climbs the -x side). s_amp adds
+    a cubic end-deviation z += s_amp*(x/drum_r)^3 to emulate the S-shaped
+    surface at higher Froude — the chord-window robustness test.
+    Particle count follows from fill_frac at the given packing fraction.
+
+    axial_slope (Phase 10, 45-deg inclined drum) tilts the surface along the
+    drum axis: z_surf += axial_slope * (y + length/2), so the trace at the
+    -y cover (y = -length/2) keeps EXACTLY angle_deg in the x-z plane while
+    the surface drops toward +y for axial_slope < 0 — the leaning bed the
+    cover-slab measurement targets. axial_slope=0.0 reproduces the original
+    generator's RNG call sequence exactly. y_range optionally confines
+    centers to a y sub-interval (for composing multi-region test beds).
+    """
+    s = slope_sign * np.tan(np.radians(angle_deg))
+    # offset measured perpendicular to the tilted chord, converted to z
+    d_perp = _chord_offset_for_fill(fill_frac, drum_r)
+    z0 = d_perp * np.sqrt(1 + s**2)
+    v_p = 4 / 3 * np.pi * particle_r**3
+    n = int(round(fill_frac * np.pi * drum_r**2 * length * packing / v_p))
+    if y_range is None:
+        y_range = (-(length / 2 - particle_r), length / 2 - particle_r)
+
+    def surf(x):
+        return s * x + z0 + s_amp * (x / drum_r) ** 3
+
+    xs, ys, zs = [], [], []
+    if axial_slope == 0.0:
+        # legacy path — y independent of (x, z); RNG sequence unchanged
+        while sum(len(a) for a in xs) < n:
+            m = 4 * n
+            x = rng.uniform(-drum_r, drum_r, m)
+            z = rng.uniform(-drum_r, drum_r, m)
+            keep = (x**2 + z**2 <= (drum_r - particle_r) ** 2) & (z <= surf(x))
+            xs.append(x[keep])
+            zs.append(z[keep])
+            ys.append(rng.uniform(y_range[0], y_range[1], int(keep.sum())))
+    else:
+        # joint rejection — the surface depends on y
+        while sum(len(a) for a in xs) < n:
+            m = 6 * n
+            x = rng.uniform(-drum_r, drum_r, m)
+            z = rng.uniform(-drum_r, drum_r, m)
+            y = rng.uniform(y_range[0], y_range[1], m)
+            keep = (x**2 + z**2 <= (drum_r - particle_r) ** 2) & (
+                z <= surf(x) + axial_slope * (y + length / 2))
+            xs.append(x[keep])
+            zs.append(z[keep])
+            ys.append(y[keep])
+    x = np.concatenate(xs)[:n]
+    y = np.concatenate(ys)[:n]
+    z = np.concatenate(zs)[:n]
+    j = jitter * particle_r
+    x = x + rng.uniform(-j, j, n)
+    z = z + rng.uniform(-j, j, n)
+    return _to_df(x, y, z, np.full(n, particle_r))
+
+
+def write_dump_series(dfs, post_dir, tag: str, steps):
+    """Write a list of frames as '<tag>_<step>.liggghts' files (the drum
+    steady-state window layout). Returns the list of paths."""
+    from pathlib import Path
+
+    post_dir = Path(post_dir)
+    return [
+        write_dump(df, post_dir / f"{tag}_{step}.liggghts", timestep=step)
+        for df, step in zip(dfs, steps)
+    ]
+
+
 def make_packed_cylinder(
     packing_frac: float,
     rng: np.random.Generator,

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<style>{{ css }}</style>
+</head>
+<body>
+<header>
+  <h1>🌾 {{ study_name }} <span class="hsub">DEM calibration report</span></h1>
+  <div>{{ verdict_pill }}</div>
+</header>
+
+<section class="metric-grid">
+  {% for m in metrics %}
+  <div class="metric"><div class="k">{{ m.k }}</div><div class="v">{{ m.v }}</div></div>
+  {% endfor %}
+</section>
+
+{% if card_html %}
+<section>{{ card_html }}</section>
+{% else %}
+<section><p class="note">No best.json yet — run the study (or
+<code>optimize.py plot --config …</code>) to populate the result sections.</p></section>
+{% endif %}
+
+{% if videos %}
+<section>
+  <h2>Best trial in motion</h2>
+  <div class="video-row">
+  {% for v in videos %}
+    <figure>
+      {% if v.embedded %}<video controls loop src="{{ v.src }}"></video>
+      {% else %}<video controls loop src="{{ v.src }}"></video>
+      <p class="note">not embedded ({{ v.note }}) — keep the file next to this report</p>
+      {% endif %}
+      <figcaption>{{ v.label }}</figcaption>
+    </figure>
+  {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% for fig in figures %}
+<section>
+  <h2>{{ fig.title }}</h2>
+  {% if fig.note %}<p class="note">{{ fig.note }}</p>{% endif %}
+  <div class="fig">{{ fig.html }}</div>
+</section>
+{% endfor %}
+
+{% if gallery %}
+<section>
+  <h2>Best-trial evidence</h2>
+  <div class="gallery">
+  {% for g in gallery %}
+    <figure><img src="{{ g.data_uri }}" alt="{{ g.caption }}">
+    <figcaption>{{ g.caption }}</figcaption></figure>
+  {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if validation %}
+<section>
+  <h2>Hold-out validation (shipped material card)</h2>
+  <table class="kv">
+    {% for k, v in validation.items() %}
+    <tr><th>{{ k }}</th><td>{{ v }}</td></tr>
+    {% endfor %}
+  </table>
+</section>
+{% endif %}
+
+<section>
+  <h2>Reproduce</h2>
+  <p>The study is its <code>config.json</code> — replaying it through the bare
+  CLI reproduces the identical study from the simulation cache:</p>
+  <pre>{{ replay_cmd }}</pre>
+  {% if evidence %}
+  <table class="kv">
+    {% for k, v in evidence.items() %}
+    <tr><th>{{ k }}</th><td>{{ v }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</section>
+
+<footer class="note">generated {{ generated }} · single-file report — charts
+are interactive (plotly via CDN); everything else is embedded</footer>
+</body>
+</html>
